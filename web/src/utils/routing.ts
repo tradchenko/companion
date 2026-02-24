@@ -1,3 +1,5 @@
+import { installClipboardWriteFallback } from "./clipboard.js";
+
 export type Route =
   | { page: "home" }
   | { page: "session"; sessionId: string }
@@ -14,93 +16,20 @@ export type Route =
 
 const SESSION_PREFIX = "#/session/";
 const AGENT_PREFIX = "#/agents/";
-let clipboardFallbackInstalled = false;
+let clipboardFallbackInitialized = false;
 
-function copyTextWithExecCommand(text: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof document === "undefined" || typeof document.execCommand !== "function") {
-      reject(new Error("Clipboard fallback is unavailable"));
-      return;
-    }
-
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.setAttribute("readonly", "");
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      const copied = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      if (!copied) {
-        reject(new Error("Copy command was rejected"));
-        return;
-      }
-      resolve();
-    } catch (error) {
-      reject(error instanceof Error ? error : new Error("Clipboard copy failed"));
-    }
-  });
-}
-
-export function installClipboardWriteFallback(): void {
-  if (clipboardFallbackInstalled || typeof window === "undefined") return;
-  clipboardFallbackInstalled = true;
-
-  const nav = window.navigator as Navigator & {
-    clipboard?: { writeText?: (text: string) => Promise<void> };
-  };
-  const clipboard = nav.clipboard;
-
-  if (clipboard?.writeText) {
-    const originalWriteText = clipboard.writeText.bind(clipboard);
-    try {
-      clipboard.writeText = async (text: string) => {
-        try {
-          await originalWriteText(text);
-        } catch {
-          try {
-            await copyTextWithExecCommand(text);
-          } catch {
-            // Keep this promise resolved to avoid unhandled rejections in callers
-            // that only attach `.then()` handlers.
-          }
-        }
-      };
-    } catch {
-      // Clipboard object is read-only in this environment.
-    }
-    return;
-  }
-
-  try {
-    Object.defineProperty(nav, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: async (text: string) => {
-          try {
-            await copyTextWithExecCommand(text);
-          } catch {
-            // Keep this promise resolved to avoid unhandled rejections in callers
-            // that only attach `.then()` handlers.
-          }
-        },
-      },
-    });
-  } catch {
-    // Navigator.clipboard cannot be reassigned in this environment.
-  }
-}
-
-export function resetClipboardFallbackForTests(): void {
-  clipboardFallbackInstalled = false;
+function ensureClipboardFallbackInstalled(): void {
+  if (clipboardFallbackInitialized) return;
+  installClipboardWriteFallback();
+  clipboardFallbackInitialized = true;
 }
 
 /**
  * Parse a window.location.hash string into a typed Route.
  */
 export function parseHash(hash: string): Route {
+  ensureClipboardFallbackInstalled();
+
   if (hash === "#/settings") return { page: "settings" };
   if (hash === "#/integrations") return { page: "integrations" };
   if (hash === "#/integrations/linear") return { page: "integration-linear" };
@@ -137,6 +66,8 @@ export function sessionHash(sessionId: string): string {
  * When replace=true, uses replaceState to avoid creating a history entry.
  */
 export function navigateToSession(sessionId: string, replace = false): void {
+  ensureClipboardFallbackInstalled();
+
   const newHash = sessionHash(sessionId);
   if (replace) {
     history.replaceState(null, "", newHash);
@@ -151,6 +82,8 @@ export function navigateToSession(sessionId: string, replace = false): void {
  * When replace=true, uses replaceState to avoid creating a history entry.
  */
 export function navigateHome(replace = false): void {
+  ensureClipboardFallbackInstalled();
+
   if (replace) {
     history.replaceState(null, "", window.location.pathname + window.location.search);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -158,5 +91,3 @@ export function navigateHome(replace = false): void {
     window.location.hash = "";
   }
 }
-
-installClipboardWriteFallback();
