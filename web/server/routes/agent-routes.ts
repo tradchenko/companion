@@ -83,7 +83,7 @@ function checkTriggerSecurity(
   config: TriggerSecurityConfig,
   secretFromPath: string,
   rawBody: string,
-): { ok: true } | { ok: false; status: number; error: string } {
+): { ok: true } | { ok: false; status: 400 | 401; error: string } {
   const authMode = config.authMode ?? "url_secret";
   const authHeader = (c.req.header("authorization") || "").trim();
   const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : "";
