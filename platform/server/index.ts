@@ -6,7 +6,6 @@ import { instances } from "./routes/instances.js";
 import { billing, stripeWebhook } from "./routes/billing.js";
 import { dashboard } from "./routes/dashboard.js";
 
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT) || 3458;
 
