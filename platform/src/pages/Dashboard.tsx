@@ -128,11 +128,12 @@ export function Dashboard() {
 function InstancesView() {
   const [instances, setInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api.listInstances()
       .then((data) => setInstances(data.instances || []))
-      .catch(() => {})
+      .catch((err) => setError(err.message || "Failed to load instances"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -140,6 +141,15 @@ function InstancesView() {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 size={24} className="animate-spin text-cc-muted" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <p className="text-cc-error text-sm mb-2">Failed to load instances</p>
+        <p className="text-cc-muted text-xs">{error}</p>
       </div>
     );
   }
@@ -176,8 +186,21 @@ function EmptyState() {
 }
 
 function InstanceCard({ instance }: { instance: any }) {
+  const [actionLoading, setActionLoading] = useState(false);
   const isRunning = instance.machineStatus === "running" || instance.machineStatus === "started";
   const isStopped = instance.machineStatus === "stopped";
+
+  async function handleAction(action: () => Promise<unknown>) {
+    setActionLoading(true);
+    try {
+      await action();
+      window.location.reload();
+    } catch {
+      // Instance action failed — page will still reflect current state
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   return (
     <div className="rounded-xl border border-cc-border bg-cc-card p-5 hover:border-cc-border-hover transition-all">
@@ -208,23 +231,30 @@ function InstanceCard({ instance }: { instance: any }) {
       <div className="flex gap-2">
         {isRunning && (
           <>
-            <button className="flex-1 py-1.5 text-xs font-medium bg-cc-primary text-white rounded-lg hover:bg-cc-primary-hover transition-colors">
-              Open
-            </button>
-            <button
-              onClick={() => api.stopInstance(instance.id)}
-              className="px-3 py-1.5 text-xs border border-cc-border rounded-lg hover:bg-cc-hover transition-colors"
+            <a
+              href={instance.hostname ? `https://${instance.hostname}` : "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-1.5 text-xs font-medium bg-cc-primary text-white rounded-lg hover:bg-cc-primary-hover transition-colors text-center"
             >
-              Stop
+              Open
+            </a>
+            <button
+              onClick={() => handleAction(() => api.stopInstance(instance.id))}
+              disabled={actionLoading}
+              className="px-3 py-1.5 text-xs border border-cc-border rounded-lg hover:bg-cc-hover transition-colors disabled:opacity-50"
+            >
+              {actionLoading ? <Loader2 size={12} className="animate-spin" /> : "Stop"}
             </button>
           </>
         )}
         {isStopped && (
           <button
-            onClick={() => api.startInstance(instance.id)}
-            className="flex-1 py-1.5 text-xs font-medium border border-cc-border rounded-lg hover:bg-cc-hover transition-colors"
+            onClick={() => handleAction(() => api.startInstance(instance.id))}
+            disabled={actionLoading}
+            className="flex-1 py-1.5 text-xs font-medium border border-cc-border rounded-lg hover:bg-cc-hover transition-colors disabled:opacity-50"
           >
-            Start
+            {actionLoading ? <Loader2 size={12} className="animate-spin mx-auto" /> : "Start"}
           </button>
         )}
       </div>
@@ -282,22 +312,30 @@ function CreateInstanceModal({ onClose }: { onClose: () => void }) {
   const [region, setRegion] = useState("iad");
   const [ownerType, setOwnerType] = useState<"shared" | "personal">("shared");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleCreate() {
     setLoading(true);
+    setError(null);
     try {
       await api.createInstance({ plan, region, ownerType });
       onClose();
       window.location.reload();
-    } catch {
-      // TODO: show error
+    } catch (err: any) {
+      setError(err.message || "Failed to create instance");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create Instance"
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-cc-card border border-cc-border rounded-2xl p-8 w-full max-w-md animate-fade-slide-up">
         <div className="flex items-center justify-between mb-6">
@@ -359,6 +397,10 @@ function CreateInstanceModal({ onClose }: { onClose: () => void }) {
             </button>
           ))}
         </div>
+
+        {error && (
+          <p className="text-cc-error text-xs mb-3">{error}</p>
+        )}
 
         <button
           onClick={handleCreate}

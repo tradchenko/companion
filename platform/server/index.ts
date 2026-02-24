@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { instances } from "./routes/instances.js";
 import { billing, stripeWebhook } from "./routes/billing.js";
 import { dashboard } from "./routes/dashboard.js";
-import { tailscale } from "./routes/tailscale.js";
+
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT) || 3458;

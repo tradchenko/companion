@@ -82,7 +82,7 @@ describe("getAuth", () => {
     expect(auth1).toBe(auth2);
   });
 
-  it("uses BETTER_AUTH_URL when set, otherwise defaults to localhost:3457", async () => {
+  it("uses BETTER_AUTH_URL when set, otherwise defaults to localhost:3458", async () => {
     // Without BETTER_AUTH_URL set
     delete process.env.BETTER_AUTH_URL;
     process.env.BETTER_AUTH_SECRET = "test-secret";
@@ -90,7 +90,7 @@ describe("getAuth", () => {
 
     const mod1 = await freshImport();
     const auth1 = mod1.getAuth();
-    expect((auth1 as any).options.baseURL).toBe("http://localhost:3457");
+    expect((auth1 as any).options.baseURL).toBe("http://localhost:3458");
 
     // With BETTER_AUTH_URL set
     process.env.BETTER_AUTH_URL = "https://app.thecompanion.sh";

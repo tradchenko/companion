@@ -17,7 +17,7 @@ import { getDb } from "./db/index.js";
  * which lets tests control them via vi.resetModules().
  *
  * Required env: BETTER_AUTH_SECRET
- * Optional env: BETTER_AUTH_URL (defaults to http://localhost:3457)
+ * Optional env: BETTER_AUTH_URL (defaults to http://localhost:3458)
  */
 
 export type Auth = ReturnType<typeof betterAuth>;
