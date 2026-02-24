@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api, type AgentInfo, type AgentExport, type AgentExecution, type McpServerConfigAgent, type CompanionEnv } from "../api.js";
-import { getModelsForBackend, getDefaultModel, getModesForBackend, getDefaultMode } from "../utils/backends.js";
+import { getModelsForBackend, getDefaultModel, getAgentModesForBackend, getDefaultAgentMode } from "../utils/backends.js";
 import { FolderPicker } from "./FolderPicker.js";
 import { timeAgo } from "../utils/time-ago.js";
 import type { Route } from "../utils/routing.js";
@@ -56,7 +56,7 @@ const EMPTY_FORM: AgentFormData = {
   icon: "",
   backendType: "claude",
   model: getDefaultModel("claude"),
-  permissionMode: getDefaultMode("claude"),
+  permissionMode: getDefaultAgentMode("claude"),
   cwd: "",
   prompt: "",
   envSlug: "",
@@ -637,7 +637,7 @@ function AgentEditor({
   onCancel: () => void;
 }) {
   const models = getModelsForBackend(form.backendType);
-  const modes = getModesForBackend(form.backendType);
+  const modes = getAgentModesForBackend(form.backendType);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(() => countAdvancedFeatures(form) > 0);
   const [showMcpForm, setShowMcpForm] = useState(false);
@@ -675,7 +675,7 @@ function AgentEditor({
       ...prev,
       backendType: backend,
       model: getDefaultModel(backend),
-      permissionMode: getDefaultMode(backend),
+      permissionMode: getDefaultAgentMode(backend),
     }));
   }
 
