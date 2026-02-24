@@ -275,7 +275,11 @@ describe("AgentsPage", () => {
       configurable: true,
       value: { writeText },
     });
-    const execCommandSpy = vi.spyOn(document, "execCommand").mockReturnValue(true);
+    const execCommandMock = vi.fn().mockReturnValue(true);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommandMock,
+    });
 
     const agent = makeAgent({
       id: "a1",
@@ -293,7 +297,7 @@ describe("AgentsPage", () => {
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledTimes(1);
-      expect(execCommandSpy).toHaveBeenCalledWith("copy");
+      expect(execCommandMock).toHaveBeenCalledWith("copy");
     });
     expect(screen.getByText("Copied!")).toBeInTheDocument();
   });
