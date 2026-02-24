@@ -176,8 +176,12 @@ export class AgentExecutor {
       // Configure MCP servers if specified
       if (agent.mcpServers && Object.keys(agent.mcpServers).length > 0) {
         this.wsBridge.injectMcpSetServers(sessionInfo.sessionId, agent.mcpServers);
-        // Give MCP servers a moment to initialize before sending the prompt
-        await new Promise((r) => setTimeout(r, 2000));
+        // MCP servers need time to initialize before the CLI processes the prompt.
+        // The CLI handles MCP setup asynchronously; this delay ensures servers are
+        // ready. A proper health-check mechanism would be better long-term, but the
+        // CLI doesn't expose an MCP-ready signal yet.
+        const MCP_INIT_DELAY_MS = 2000;
+        await new Promise((r) => setTimeout(r, MCP_INIT_DELAY_MS));
       }
 
       // Resolve prompt: replace {{input}} placeholder with trigger input
