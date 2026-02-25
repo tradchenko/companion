@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
+const AUTH_STORAGE_KEY = "companion_auth_token";
+
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
+
 type Phase = "installing" | "restarting" | "waiting" | "ready";
 
 const PHASE_LABELS: Record<Phase, string> = {
@@ -43,7 +52,7 @@ function useServerPoll(active: boolean) {
     function poll() {
       if (!mountedRef.current) return;
 
-      fetch("/api/update-check", { signal: AbortSignal.timeout(3000) })
+      fetch("/api/update-check", { signal: AbortSignal.timeout(3000), headers: getAuthHeaders() })
         .then((res) => {
           if (!res.ok) throw new Error("not ready");
           return res.json();
