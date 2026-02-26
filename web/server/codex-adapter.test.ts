@@ -2354,6 +2354,176 @@ describe("CodexAdapter", () => {
     expect(lastUpdate.session.codex_token_details?.outputTokens).toBe(50_000);
     expect(lastUpdate.session.codex_token_details?.cachedInputTokens).toBe(930_000);
   });
+
+  // ─── ExitPlanMode ───────────────────────────────────────────────────────────
+
+  it("routes item/tool/call ExitPlanMode to permission_request with bare tool name", async () => {
+    // When Codex sends ExitPlanMode via item/tool/call, the adapter should emit
+    // a permission_request with tool_name "ExitPlanMode" (not "dynamic:ExitPlanMode")
+    // so the frontend ExitPlanModeDisplay component renders correctly.
+    const messages: BrowserIncomingMessage[] = [];
+    const adapter = new CodexAdapter(proc as never, "test-session", { model: "o4-mini" });
+    adapter.onBrowserMessage((msg) => messages.push(msg));
+
+    await new Promise((r) => setTimeout(r, 50));
+    stdout.push(JSON.stringify({ id: 1, result: { userAgent: "codex" } }) + "\n");
+    await new Promise((r) => setTimeout(r, 20));
+    stdout.push(JSON.stringify({ id: 2, result: { thread: { id: "thr_123" } } }) + "\n");
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Simulate Codex sending ExitPlanMode as a dynamic tool call
+    stdout.push(JSON.stringify({
+      method: "item/tool/call",
+      id: 900,
+      params: {
+        callId: "call_exitplan_1",
+        tool: "ExitPlanMode",
+        arguments: {
+          plan: "## My Plan\n\n1. Step one\n2. Step two",
+          allowedPrompts: [{ tool: "Bash", prompt: "run tests" }],
+        },
+      },
+    }) + "\n");
+    await new Promise((r) => setTimeout(r, 50));
+
+    const permRequests = messages.filter((m) => m.type === "permission_request");
+    expect(permRequests.length).toBe(1);
+    const perm = permRequests[0] as { request: { request_id: string; tool_name: string; tool_use_id: string; input: Record<string, unknown> } };
+
+    // Should use bare "ExitPlanMode", NOT "dynamic:ExitPlanMode"
+    expect(perm.request.request_id).toContain("codex-exitplan-");
+    expect(perm.request.tool_name).toBe("ExitPlanMode");
+    expect(perm.request.tool_use_id).toBe("call_exitplan_1");
+    expect(perm.request.input.plan).toBe("## My Plan\n\n1. Step one\n2. Step two");
+    expect(perm.request.input.allowedPrompts).toEqual([{ tool: "Bash", prompt: "run tests" }]);
+
+    // Should also emit tool_use with bare name for the message feed
+    const assistantMsgs = messages.filter((m) => m.type === "assistant") as Array<{
+      message: { content: Array<{ type: string; name?: string }> };
+    }>;
+    const toolUseBlock = assistantMsgs.flatMap((m) => m.message.content).find(
+      (b) => b.type === "tool_use" && b.name === "ExitPlanMode",
+    );
+    expect(toolUseBlock).toBeDefined();
+  });
+
+  it("updates collaboration mode on ExitPlanMode approval", async () => {
+    // When the user approves ExitPlanMode, the adapter should switch
+    // collaboration mode from plan back to default and emit a session_update.
+    const messages: BrowserIncomingMessage[] = [];
+    const adapter = new CodexAdapter(proc as never, "test-session", {
+      model: "o4-mini",
+      approvalMode: "plan",
+    });
+    adapter.onBrowserMessage((msg) => messages.push(msg));
+
+    await new Promise((r) => setTimeout(r, 50));
+    stdout.push(JSON.stringify({ id: 1, result: { userAgent: "codex" } }) + "\n");
+    await new Promise((r) => setTimeout(r, 20));
+    stdout.push(JSON.stringify({ id: 2, result: { thread: { id: "thr_123" } } }) + "\n");
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Codex sends ExitPlanMode
+    stdout.push(JSON.stringify({
+      method: "item/tool/call",
+      id: 901,
+      params: {
+        callId: "call_exitplan_2",
+        tool: "ExitPlanMode",
+        arguments: { plan: "The plan", allowedPrompts: [] },
+      },
+    }) + "\n");
+    await new Promise((r) => setTimeout(r, 50));
+
+    const perm = messages.find((m) => m.type === "permission_request") as {
+      request: { request_id: string };
+    };
+    expect(perm).toBeDefined();
+
+    // User approves the plan
+    stdin.chunks = [];
+    adapter.sendBrowserMessage({
+      type: "permission_response",
+      request_id: perm.request.request_id,
+      behavior: "allow",
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Should emit session_update switching out of plan mode
+    const sessionUpdates = messages.filter((m) => m.type === "session_update") as Array<{
+      session: { permissionMode?: string };
+    }>;
+    const modeUpdate = sessionUpdates.find((u) => u.session.permissionMode !== undefined && u.session.permissionMode !== "plan");
+    expect(modeUpdate).toBeDefined();
+
+    // Should respond to Codex with success: true via DynamicToolCallResponse
+    const allWritten = stdin.chunks.join("");
+    const responseLines = allWritten.split("\n").filter((l: string) => l.includes('"id":901'));
+    expect(responseLines.length).toBeGreaterThanOrEqual(1);
+    expect(responseLines[0]).toContain('"success":true');
+    expect(responseLines[0]).toContain("Plan approved");
+  });
+
+  it("stays in plan mode on ExitPlanMode denial", async () => {
+    // When the user denies ExitPlanMode, the adapter should stay in plan mode
+    // and respond to Codex with success: false.
+    const messages: BrowserIncomingMessage[] = [];
+    const adapter = new CodexAdapter(proc as never, "test-session", {
+      model: "o4-mini",
+      approvalMode: "plan",
+    });
+    adapter.onBrowserMessage((msg) => messages.push(msg));
+
+    await new Promise((r) => setTimeout(r, 50));
+    stdout.push(JSON.stringify({ id: 1, result: { userAgent: "codex" } }) + "\n");
+    await new Promise((r) => setTimeout(r, 20));
+    stdout.push(JSON.stringify({ id: 2, result: { thread: { id: "thr_123" } } }) + "\n");
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Codex sends ExitPlanMode
+    stdout.push(JSON.stringify({
+      method: "item/tool/call",
+      id: 902,
+      params: {
+        callId: "call_exitplan_3",
+        tool: "ExitPlanMode",
+        arguments: { plan: "The plan", allowedPrompts: [] },
+      },
+    }) + "\n");
+    await new Promise((r) => setTimeout(r, 50));
+
+    const perm = messages.find((m) => m.type === "permission_request") as {
+      request: { request_id: string };
+    };
+    expect(perm).toBeDefined();
+
+    // Clear messages before denial to isolate session_update check
+    const messagesBeforeDeny = messages.length;
+
+    // User denies the plan
+    stdin.chunks = [];
+    adapter.sendBrowserMessage({
+      type: "permission_response",
+      request_id: perm.request.request_id,
+      behavior: "deny",
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Should NOT emit session_update switching out of plan mode
+    const newMessages = messages.slice(messagesBeforeDeny);
+    const sessionUpdates = newMessages.filter((m) => m.type === "session_update") as Array<{
+      session: { permissionMode?: string };
+    }>;
+    const modeUpdate = sessionUpdates.find((u) => u.session.permissionMode !== undefined && u.session.permissionMode !== "plan");
+    expect(modeUpdate).toBeUndefined();
+
+    // Should respond to Codex with success: false
+    const allWritten = stdin.chunks.join("");
+    const responseLines = allWritten.split("\n").filter((l: string) => l.includes('"id":902'));
+    expect(responseLines.length).toBeGreaterThanOrEqual(1);
+    expect(responseLines[0]).toContain('"success":false');
+    expect(responseLines[0]).toContain("Plan denied");
+  });
 });
 
 // ─── ICodexTransport-based tests ──────────────────────────────────────────────
