@@ -137,12 +137,25 @@ export function registerOrchestratorRoutes(
     const run = orchestratorStore.getRun(runId);
     if (!run) return c.json({ error: "Run not found" }, 404);
 
-    // Clean up container if it exists
+    // Clean up container(s) if they exist
     if (run.containerId) {
+      // Shared mode: single container with runId as key
       try {
         containerManager.removeContainer(runId);
       } catch {
         // Best-effort cleanup
+      }
+    } else {
+      // Per-stage mode: try to clean up per-stage containers
+      const orch = orchestratorStore.getOrchestrator(run.orchestratorId);
+      if (orch) {
+        for (let i = 0; i < orch.stages.length; i++) {
+          try {
+            containerManager.removeContainer(`${runId}-stage-${i}`);
+          } catch {
+            // Stage may not have run or already cleaned up
+          }
+        }
       }
     }
 

@@ -264,6 +264,14 @@ export class OrchestratorExecutor {
         error: errorMsg,
       });
     } finally {
+      // Clean up shared container if it exists
+      if (containerMode === "shared" && sharedContainerId) {
+        try {
+          containerManager.removeContainer(runId);
+        } catch (err) {
+          console.error(`[orchestrator-executor] Failed to remove shared container for run ${runId}:`, err);
+        }
+      }
       this.activeRuns.delete(runId);
     }
   }

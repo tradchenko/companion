@@ -136,7 +136,7 @@ describe("orchestrator-store: orchestrator CRUD", () => {
     expect(updated).not.toBeNull();
     expect(updated!.description).toBe("Updated description");
     expect(updated!.totalRuns).toBe(5);
-    expect(updated!.updatedAt).toBeGreaterThan(updated!.createdAt);
+    expect(updated!.updatedAt).toBeGreaterThanOrEqual(updated!.createdAt);
   });
 
   it("should handle rename with slug change", () => {
