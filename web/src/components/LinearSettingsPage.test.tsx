@@ -36,8 +36,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockState = { currentSessionId: null };
   mockApi.getSettings.mockResolvedValue({
-    openrouterApiKeyConfigured: false,
-    openrouterModel: "openrouter/free",
+    anthropicApiKeyConfigured: false,
+    anthropicModel: "claude-sonnet-4.6",
     linearApiKeyConfigured: true,
     linearAutoTransition: false,
     linearAutoTransitionStateName: "",
@@ -45,8 +45,8 @@ beforeEach(() => {
     linearArchiveTransitionStateName: "",
   });
   mockApi.updateSettings.mockResolvedValue({
-    openrouterApiKeyConfigured: false,
-    openrouterModel: "openrouter/free",
+    anthropicApiKeyConfigured: false,
+    anthropicModel: "claude-sonnet-4.6",
     linearApiKeyConfigured: true,
     linearAutoTransition: false,
     linearAutoTransitionStateName: "",
@@ -125,8 +125,8 @@ describe("LinearSettingsPage", () => {
 
   it("disconnects Linear integration", async () => {
     mockApi.updateSettings.mockResolvedValueOnce({
-      openrouterApiKeyConfigured: false,
-      openrouterModel: "openrouter/free",
+      anthropicApiKeyConfigured: false,
+      anthropicModel: "claude-sonnet-4.6",
       linearApiKeyConfigured: false,
     });
 
