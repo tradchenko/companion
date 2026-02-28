@@ -16,8 +16,31 @@ env:
   IMAGE_NAME: stangirard/the-companion
 
 jobs:
+  test-gate:
+    name: test-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: web
+        run: bun install
+
+      - name: Typecheck
+        working-directory: web
+        run: bun run typecheck
+
+      - name: Run tests
+        working-directory: web
+        run: bun test
+
   preview-docker:
     name: deploy/preview
+    needs: test-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +71,7 @@ jobs:
 
   preview-npm:
     name: deploy/preview-npm
+    needs: test-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

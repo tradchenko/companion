@@ -719,12 +719,14 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
                         setUpdateChannel("stable");
                         try {
                           await api.updateSettings({ updateChannel: "stable" });
-                          // Re-check for updates with the new channel
-                          const info = await api.forceCheckForUpdate();
-                          setUpdateInfo(info);
                         } catch {
                           setUpdateChannel("prerelease");
+                          return;
                         }
+                        try {
+                          const info = await api.forceCheckForUpdate();
+                          setUpdateInfo(info);
+                        } catch { /* settings saved; swallow check error */ }
                       }}
                       className={`px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                         updateChannel === "stable"
@@ -743,12 +745,14 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
                         setUpdateChannel("prerelease");
                         try {
                           await api.updateSettings({ updateChannel: "prerelease" });
-                          // Re-check for updates with the new channel
-                          const info = await api.forceCheckForUpdate();
-                          setUpdateInfo(info);
                         } catch {
                           setUpdateChannel("stable");
+                          return;
                         }
+                        try {
+                          const info = await api.forceCheckForUpdate();
+                          setUpdateInfo(info);
+                        } catch { /* settings saved; swallow check error */ }
                       }}
                       className={`px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                         updateChannel === "prerelease"
