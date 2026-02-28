@@ -74,11 +74,11 @@ beforeEach(() => {
 });
 
 describe("PromptsPage", () => {
-  it("loads prompts on mount using current session cwd (no scope filter)", async () => {
-    // Validates prompt listing now fetches all scopes visible for cwd.
+  it("loads all prompts on mount without session cwd filtering", async () => {
+    // Validates prompt listing fetches all prompts regardless of active session cwd.
     render(<PromptsPage embedded />);
     await waitFor(() => {
-      expect(mockApi.listPrompts).toHaveBeenCalledWith("/repo");
+      expect(mockApi.listPrompts).toHaveBeenCalledWith();
     });
   });
 
@@ -261,8 +261,9 @@ describe("PromptsPage", () => {
     expect(screen.getByText("No prompts match your search.")).toBeInTheDocument();
   });
 
-  it("shows scope badge with folder name for project prompts", async () => {
-    // Validates the scope badge shows folder directory name for project-scoped prompts.
+  it("shows scope badge with folder chip for project prompts", async () => {
+    // Validates the scope badge renders a folder chip for project-scoped prompts.
+    // The folder name appears both as the group header and as a chip in the row.
     mockApi.listPrompts.mockResolvedValueOnce([
       {
         id: "p1",
@@ -277,8 +278,9 @@ describe("PromptsPage", () => {
     ]);
     render(<PromptsPage embedded />);
     await screen.findByText("project-prompt");
-    // The scope badge should show the folder name
-    expect(screen.getByText("my-project")).toBeInTheDocument();
+    // Folder name appears in both the group header and the scope badge chip
+    const folderElements = screen.getAllByText("my-project");
+    expect(folderElements.length).toBeGreaterThanOrEqual(2);
   });
 
   it("shows scope selector in create form with Global and Project folders buttons", async () => {
@@ -333,8 +335,8 @@ describe("PromptsPage", () => {
     expect(mockApi.createPrompt).not.toHaveBeenCalled();
   });
 
-  it("displays multi-folder scope badge with count", async () => {
-    // Validates the scope badge shows +N count for prompts with multiple folders.
+  it("displays individual folder chips for multi-folder prompts", async () => {
+    // Validates scope badge shows a chip per folder for prompts assigned to multiple folders.
     mockApi.listPrompts.mockResolvedValueOnce([
       {
         id: "p1",
@@ -349,7 +351,67 @@ describe("PromptsPage", () => {
     ]);
     render(<PromptsPage embedded />);
     await screen.findByText("multi-folder");
-    expect(screen.getByText("repo-a +2")).toBeInTheDocument();
+    expect(screen.getByText("repo-a")).toBeInTheDocument();
+    expect(screen.getByText("repo-b")).toBeInTheDocument();
+    expect(screen.getByText("repo-c")).toBeInTheDocument();
+  });
+
+  it("renders grouped sections for mixed global and project prompts", async () => {
+    // Validates that prompts are grouped under Global and project folder headers.
+    mockApi.listPrompts.mockResolvedValueOnce([
+      {
+        id: "g1",
+        name: "global-prompt",
+        content: "Global content",
+        scope: "global",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: "p1",
+        name: "project-prompt",
+        content: "Project content",
+        scope: "project",
+        projectPath: "/home/user/my-app",
+        projectPaths: ["/home/user/my-app"],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ]);
+    render(<PromptsPage embedded />);
+    await screen.findByText("global-prompt");
+
+    // Both prompts visible regardless of session cwd
+    expect(screen.getByText("global-prompt")).toBeInTheDocument();
+    expect(screen.getByText("project-prompt")).toBeInTheDocument();
+
+    // Group headers present — "Global" header and "my-app" folder header
+    expect(screen.getByText("Global")).toBeInTheDocument();
+    // "my-app" appears in both group header and scope badge chip
+    const folderElements = screen.getAllByText("my-app");
+    expect(folderElements.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("loads all prompts even without a selected session", async () => {
+    // Validates the page fully works with no session selected.
+    mockState = {
+      currentSessionId: null,
+      sessions: new Map(),
+      sdkSessions: [],
+    };
+    mockApi.listPrompts.mockResolvedValueOnce([
+      {
+        id: "g1",
+        name: "always-visible",
+        content: "Content",
+        scope: "global",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ]);
+    render(<PromptsPage embedded />);
+    await screen.findByText("always-visible");
+    expect(mockApi.listPrompts).toHaveBeenCalledWith();
   });
 
   it("shows Back button in non-embedded mode", async () => {
