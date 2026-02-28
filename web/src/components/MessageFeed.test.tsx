@@ -459,4 +459,83 @@ describe("MessageFeed - subagent grouping", () => {
     // The agent type badge should be shown
     expect(screen.getByText("researcher")).toBeTruthy();
   });
+
+  it("renders Codex subagent metadata badges (status + receiver count)", () => {
+    const sid = "test-codex-subagent-meta";
+    setStoreMessages(sid, [
+      makeMessage({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        contentBlocks: [
+          {
+            type: "tool_use",
+            id: "task-cx-1",
+            name: "Task",
+            input: {
+              description: "Investigate auth edge-cases",
+              subagent_type: "spawn_agent",
+              codex_status: "completed",
+              receiver_thread_ids: ["thr_sub_1", "thr_sub_2"],
+            },
+          },
+        ],
+      }),
+      makeMessage({
+        id: "child-1",
+        role: "assistant",
+        content: "Done",
+        parentToolUseId: "task-cx-1",
+      }),
+    ]);
+
+    render(<MessageFeed sessionId={sid} />);
+
+    expect(screen.getByText("completed")).toBeTruthy();
+    expect(screen.getByText("2 agents")).toBeTruthy();
+  });
+
+  it("normalizes Codex status labels and shows participant details when expanded", () => {
+    const sid = "test-codex-subagent-details";
+    setStoreMessages(sid, [
+      makeMessage({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        contentBlocks: [
+          {
+            type: "tool_use",
+            id: "task-cx-2",
+            name: "Task",
+            input: {
+              description: "Parallelize lint fixes",
+              subagent_type: "spawn_agent",
+              codex_status: "inProgress",
+              sender_thread_id: "thr_main",
+              receiver_thread_ids: ["thr_sub_1", "thr_sub_2"],
+            },
+          },
+        ],
+      }),
+      makeMessage({
+        id: "child-1",
+        role: "assistant",
+        content: "Working",
+        parentToolUseId: "task-cx-2",
+      }),
+    ]);
+
+    render(<MessageFeed sessionId={sid} />);
+
+    expect(screen.getByText("Codex")).toBeTruthy();
+    expect(screen.getByText("running")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /spawn_agent/i }));
+
+    expect(screen.getByText("2 running")).toBeTruthy();
+    expect(screen.getByText("sender: thr_main")).toBeTruthy();
+    expect(screen.getByText("receivers: 2")).toBeTruthy();
+    expect(screen.getByText("thr_sub_1")).toBeTruthy();
+    expect(screen.getByText("thr_sub_2")).toBeTruthy();
+  });
 });
