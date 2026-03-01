@@ -159,7 +159,7 @@ export function PermissionBanner({
 function isServiceFailure(reason: string): boolean {
   const failurePatterns = [
     /^Invalid Anthropic/i,
-    /^Anthropic .*(rate limit|overloaded|unavailable|error)/i,
+    /^Anthropic .*(rate limit|overloaded|unavailable|error|lacks permission)/i,
     /^AI service/i,
     /^AI evaluation timed out/i,
     /^Model not found/i,

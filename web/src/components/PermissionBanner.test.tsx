@@ -536,6 +536,17 @@ describe("AI validation badge", () => {
     expect(screen.getByText(/Invalid Anthropic API key/)).toBeTruthy();
   });
 
+  it("renders 'AI analysis unavailable' label for permission failures (403)", () => {
+    // 403 permission errors should also be identified as service failures.
+    const perm = makePermission({
+      ai_validation: { verdict: "uncertain", reason: "Anthropic API key lacks permission", ruleBasedOnly: false },
+    });
+    render(<PermissionBanner permission={perm} sessionId="s1" />);
+
+    expect(screen.getByText(/AI analysis unavailable/)).toBeTruthy();
+    expect(screen.getByText(/lacks permission/)).toBeTruthy();
+  });
+
   it("renders 'AI analysis unavailable' label for timeout failures", () => {
     // Timeout errors should also be identified as service failures.
     const perm = makePermission({
