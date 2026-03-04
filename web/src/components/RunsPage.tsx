@@ -21,19 +21,19 @@ function triggerLabel(type: string): string {
 
 function triggerColor(type: string): string {
   switch (type) {
-    case "manual": return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
-    case "webhook": return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400";
-    case "schedule": return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
-    case "chat": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
-    default: return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400";
+    case "manual": return "bg-blue-500/10 text-blue-600 dark:text-blue-400";
+    case "webhook": return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+    case "schedule": return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    case "chat": return "bg-cc-success/10 text-cc-success";
+    default: return "bg-cc-hover text-cc-muted";
   }
 }
 
 function statusIndicator(exec: AgentExecution): { label: string; color: string } {
-  if (exec.error) return { label: "Error", color: "text-red-500" };
-  if (exec.success) return { label: "Success", color: "text-green-500" };
-  if (!exec.completedAt) return { label: "Running", color: "text-yellow-500" };
-  return { label: "Unknown", color: "text-gray-500" };
+  if (exec.error) return { label: "Error", color: "text-cc-error" };
+  if (exec.success) return { label: "Success", color: "text-cc-success" };
+  if (!exec.completedAt) return { label: "Running", color: "text-cc-warning" };
+  return { label: "Unknown", color: "text-cc-muted" };
 }
 
 function formatDuration(startedAt: number, completedAt?: number): string {
@@ -101,22 +101,22 @@ export function RunsPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-950">
+    <div className="h-full flex flex-col bg-cc-bg">
       {/* Header */}
-      <div className="shrink-0 border-b border-gray-200 dark:border-gray-800 px-6 py-4">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Runs</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      <div className="shrink-0 border-b border-cc-border px-6 py-4">
+        <h1 className="text-lg font-semibold text-cc-fg">Runs</h1>
+        <p className="text-sm text-cc-muted mt-1">
           Monitor agent executions across all triggers
         </p>
       </div>
 
       {/* Filters */}
-      <div className="shrink-0 border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center gap-4 flex-wrap">
+      <div className="shrink-0 border-b border-cc-border px-6 py-3 flex items-center gap-4 flex-wrap">
         {/* Agent filter */}
         <select
           value={agentFilter}
           onChange={(e) => setAgentFilter(e.target.value)}
-          className="text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-2 py-1"
+          className="text-sm rounded-md border border-cc-border bg-cc-input-bg text-cc-fg px-2 py-1"
           aria-label="Filter by agent"
         >
           <option value="">All agents</option>
@@ -133,8 +133,8 @@ export function RunsPage() {
               onClick={() => setTriggerFilter(t)}
               className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
                 triggerFilter === t
-                  ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                  ? "bg-cc-fg text-cc-bg"
+                  : "bg-cc-hover text-cc-muted hover:text-cc-fg"
               }`}
             >
               {t === "all" ? "All triggers" : triggerLabel(t)}
@@ -150,8 +150,8 @@ export function RunsPage() {
               onClick={() => setStatusFilter(s)}
               className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
                 statusFilter === s
-                  ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                  ? "bg-cc-fg text-cc-bg"
+                  : "bg-cc-hover text-cc-muted hover:text-cc-fg"
               }`}
             >
               {s === "all" ? "All statuses" : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -159,7 +159,7 @@ export function RunsPage() {
           ))}
         </div>
 
-        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
+        <span className="text-xs text-cc-muted ml-auto">
           {total} total
         </span>
       </div>
@@ -167,18 +167,21 @@ export function RunsPage() {
       {/* Table */}
       <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="flex items-center justify-center h-32 text-gray-400">
-            Loading...
-          </div>
+          <div className="text-sm text-cc-muted text-center py-12">Loading...</div>
         ) : executions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-400 dark:text-gray-500">
-            <p className="text-sm">No executions found</p>
-            <p className="text-xs mt-1">Run an agent to see executions here</p>
+          <div className="text-center py-16">
+            <div className="mb-3 flex justify-center text-cc-muted">
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-8 h-8">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm-.75 3.5a.75.75 0 011.5 0v3.19l2.03 2.03a.75.75 0 01-1.06 1.06l-2.25-2.25A.75.75 0 017.25 8V4.5z" />
+              </svg>
+            </div>
+            <p className="text-sm text-cc-muted">No executions found</p>
+            <p className="text-xs text-cc-muted mt-1">Run an agent to see executions here</p>
           </div>
         ) : (
           <table className="w-full text-sm" role="table">
-            <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900/80 backdrop-blur">
-              <tr className="text-left text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <thead className="sticky top-0 bg-cc-card backdrop-blur">
+              <tr className="text-left text-xs text-cc-muted uppercase tracking-wider">
                 <th className="px-6 py-2 font-medium">Agent</th>
                 <th className="px-4 py-2 font-medium">Trigger</th>
                 <th className="px-4 py-2 font-medium">Status</th>
@@ -187,7 +190,7 @@ export function RunsPage() {
                 <th className="px-4 py-2 font-medium">Session</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            <tbody className="divide-y divide-cc-border/50">
               {executions.map((exec) => {
                 const status = statusIndicator(exec);
                 const isSelected = selectedExec?.sessionId === exec.sessionId;
@@ -197,13 +200,13 @@ export function RunsPage() {
                     onClick={() => setSelectedExec(isSelected ? null : exec)}
                     className={`cursor-pointer transition-colors ${
                       isSelected
-                        ? "bg-blue-50 dark:bg-blue-900/20"
-                        : "hover:bg-gray-50 dark:hover:bg-gray-900/50"
+                        ? "bg-cc-active"
+                        : "hover:bg-cc-hover"
                     }`}
                   >
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-900 dark:text-gray-100 font-medium">
+                        <span className="text-cc-fg font-medium">
                           {agentName(exec.agentId)}
                         </span>
                       </div>
@@ -216,15 +219,15 @@ export function RunsPage() {
                     <td className="px-4 py-3">
                       <span className={`font-medium ${status.color}`}>
                         {!exec.completedAt && !exec.error && (
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 mr-1.5 animate-pulse" />
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-cc-warning mr-1.5 animate-pulse" />
                         )}
                         {status.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                    <td className="px-4 py-3 text-cc-muted">
                       {timeAgo(exec.startedAt)}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">
+                    <td className="px-4 py-3 text-cc-muted font-mono text-xs">
                       {formatDuration(exec.startedAt, exec.completedAt)}
                     </td>
                     <td className="px-4 py-3">
@@ -232,7 +235,7 @@ export function RunsPage() {
                         <a
                           href={`#/session/${exec.sessionId}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-mono underline"
+                          className="text-cc-primary hover:text-cc-primary-hover text-xs font-mono underline"
                         >
                           Open
                         </a>
@@ -248,14 +251,14 @@ export function RunsPage() {
 
       {/* Detail panel (slide up from bottom when a row is selected) */}
       {selectedExec && (
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-6 py-4">
+        <div className="shrink-0 border-t border-cc-border bg-cc-card px-6 py-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <h3 className="text-sm font-semibold text-cc-fg">
               Execution Details
             </h3>
             <button
               onClick={() => setSelectedExec(null)}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm"
+              className="text-cc-muted hover:text-cc-fg text-sm transition-colors"
               aria-label="Close details"
             >
               Close
@@ -263,33 +266,33 @@ export function RunsPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Agent</span>
-              <p className="text-gray-900 dark:text-gray-100 font-medium">{agentName(selectedExec.agentId)}</p>
+              <span className="text-cc-muted">Agent</span>
+              <p className="text-cc-fg font-medium">{agentName(selectedExec.agentId)}</p>
             </div>
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Trigger</span>
+              <span className="text-cc-muted">Trigger</span>
               <p className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${triggerColor(selectedExec.triggerType)}`}>
                 {triggerLabel(selectedExec.triggerType)}
               </p>
             </div>
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Started</span>
-              <p className="text-gray-900 dark:text-gray-100">{new Date(selectedExec.startedAt).toLocaleString()}</p>
+              <span className="text-cc-muted">Started</span>
+              <p className="text-cc-fg">{new Date(selectedExec.startedAt).toLocaleString()}</p>
             </div>
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Duration</span>
-              <p className="text-gray-900 dark:text-gray-100 font-mono">{formatDuration(selectedExec.startedAt, selectedExec.completedAt)}</p>
+              <span className="text-cc-muted">Duration</span>
+              <p className="text-cc-fg font-mono">{formatDuration(selectedExec.startedAt, selectedExec.completedAt)}</p>
             </div>
           </div>
           {selectedExec.error && (
-            <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-700 dark:text-red-400 font-mono whitespace-pre-wrap">
+            <div className="mt-3 p-2 bg-cc-error/10 rounded text-sm text-cc-error font-mono whitespace-pre-wrap">
               {selectedExec.error}
             </div>
           )}
           {selectedExec.sessionId && (
             <a
               href={`#/session/${selectedExec.sessionId}`}
-              className="mt-3 inline-flex items-center gap-1 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+              className="mt-3 inline-flex items-center gap-1 text-sm text-cc-primary hover:text-cc-primary-hover"
             >
               Open session to view live output
             </a>
