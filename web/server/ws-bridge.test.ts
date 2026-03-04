@@ -3248,3 +3248,38 @@ describe("MCP control messages", () => {
     vi.useRealTimers();
   });
 });
+
+// ─── sendToCLI error handling ──────────────────────────────────────────────
+
+describe("sendToCLI error path", () => {
+  it("logs error when CLI socket send throws", () => {
+    // When the CLI socket's send() throws (e.g. socket already closed),
+    // sendToCLI should catch the error and log it rather than crashing.
+    const sessionId = "send-error-session";
+
+    const cli = makeCliSocket(sessionId);
+    bridge.handleCLIOpen(cli, sessionId);
+
+    // Send a system.init to fully connect the session
+    const initMsg = makeInitMsg();
+    bridge.handleCLIMessage(cli, initMsg);
+
+    // Now make send() throw to simulate a broken socket
+    cli.send.mockImplementation(() => {
+      throw new Error("Socket is closed");
+    });
+
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Inject a user message which calls sendToCLI internally
+    bridge.injectUserMessage(sessionId, "test message");
+
+    // The error should be caught and logged, not thrown
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to send to CLI"),
+      expect.any(Error),
+    );
+
+    spy.mockRestore();
+  });
+});
