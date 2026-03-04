@@ -280,6 +280,28 @@ describe("ChatBot", () => {
       );
     });
 
+    it("skips globally disabled agents", async () => {
+      const executor = createMockExecutor();
+      const wsBridge = createMockWsBridge();
+      const bot = new ChatBot(executor as any, wsBridge as any);
+      bot.initialize();
+
+      // Agent has chat enabled but is globally disabled
+      const agent = makeAgent({ enabled: false });
+      vi.mocked(agentStore.listAgents).mockReturnValue([agent]);
+
+      const mentionHandler = mockOnNewMention.mock.calls[0][0];
+      const thread = createMockThread({ id: "linear:issue-disabled" });
+
+      await mentionHandler(thread, { text: "help" });
+
+      // Should not match the disabled agent
+      expect(thread.post).toHaveBeenCalledWith(
+        expect.stringContaining("No agent is configured"),
+      );
+      expect(executor.executeAgent).not.toHaveBeenCalled();
+    });
+
     it("respects mentionPattern filter", async () => {
       const executor = createMockExecutor();
       const wsBridge = createMockWsBridge();
@@ -335,6 +357,36 @@ describe("ChatBot", () => {
         "follow up question",
       );
       expect(thread.startTyping).toHaveBeenCalled();
+    });
+
+    it("re-wires response relay before injecting follow-up message", async () => {
+      const executor = createMockExecutor();
+      const wsBridge = createMockWsBridge();
+      const bot = new ChatBot(executor as any, wsBridge as any);
+      bot.initialize();
+
+      const subscribedHandler = mockOnSubscribedMessage.mock.calls[0][0];
+      const thread = createMockThread({
+        id: "linear:issue-relay",
+        state: { sessionId: "existing-session", agentId: "agent-1" },
+      });
+
+      await subscribedHandler(thread, { text: "follow up" });
+
+      // Should re-register listeners on the wsBridge for the session
+      // (setupResponseRelay is called before injectUserMessage)
+      expect(wsBridge.onAssistantMessageForSession).toHaveBeenCalledWith(
+        "existing-session",
+        expect.any(Function),
+      );
+      expect(wsBridge.onResultForSession).toHaveBeenCalledWith(
+        "existing-session",
+        expect.any(Function),
+      );
+      expect(wsBridge.injectUserMessage).toHaveBeenCalledWith(
+        "existing-session",
+        "follow up",
+      );
     });
 
     it("falls back to handleMention when thread has no session state", async () => {

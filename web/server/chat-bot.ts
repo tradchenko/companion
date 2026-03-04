@@ -168,6 +168,10 @@ export class ChatBot {
 
     try {
       await thread.startTyping("Processing...");
+      // Re-wire the response relay before injecting — the previous turn may
+      // have exited (calling cleanupSession), which removes all listeners.
+      // setupResponseRelay is idempotent (cleans up existing relay first).
+      this.setupResponseRelay(state.sessionId, thread);
       // Inject the message into the existing session
       this.wsBridge.injectUserMessage(state.sessionId, message.text);
     } catch (err) {
@@ -243,6 +247,7 @@ export class ChatBot {
     const agents = agentStore.listAgents();
 
     for (const agent of agents) {
+      if (!agent.enabled) continue;
       if (!agent.triggers?.chat?.enabled) continue;
 
       const binding = agent.triggers.chat.platforms?.find((p) => p.adapter === adapterName);
