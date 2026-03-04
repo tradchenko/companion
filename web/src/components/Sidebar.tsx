@@ -102,15 +102,6 @@ const NAV_SECTIONS = [
   { id: "workspace", label: "Workspace", itemIds: ["environments", "agents", "settings"] },
 ] as const;
 
-const NAV_HELPERS: Record<string, string> = {
-  prompts: "Templates and prompt library",
-  integrations: "Connected tools and services",
-  terminal: "Embedded shell and logs",
-  environments: "Runtime profiles and setup",
-  agents: "Automations and delegated runs",
-  settings: "Preferences and configuration",
-};
-
 const NAV_ITEMS_BY_ID = new Map(NAV_ITEMS.map((item) => [item.id, item]));
 
 export function Sidebar() {
@@ -648,14 +639,14 @@ export function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="px-2 py-2 pb-safe bg-cc-sidebar-footer border-t border-cc-border/30">
-        <nav className="flex flex-col gap-2" aria-label="Navigation">
+      <div className="px-2 py-1.5 pb-safe bg-cc-sidebar-footer border-t border-cc-border/30">
+        <nav className="flex flex-col gap-1.5" aria-label="Navigation">
           {NAV_SECTIONS.map((section) => (
-            <section key={section.id} className="rounded-xl border border-cc-border/40 bg-cc-card/35 p-1">
-              <h3 className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-cc-muted/80">
+            <section key={section.id} className="rounded-lg border border-cc-border/30 bg-cc-card/20 p-0.5">
+              <h3 className="px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-cc-muted/75">
                 {section.label}
               </h3>
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col">
                 {section.itemIds.map((itemId) => {
                   const item = NAV_ITEMS_BY_ID.get(itemId);
                   if (!item) return null;
@@ -677,7 +668,7 @@ export function Sidebar() {
                       }}
                       title={item.label}
                       aria-current={isActive ? "page" : undefined}
-                      className={`group flex min-h-[44px] w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cc-primary/60 ${
+                      className={`group flex min-h-[44px] md:min-h-[34px] w-full items-center gap-2 rounded-md px-2 py-1 md:py-0.5 text-left transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cc-primary/60 ${
                         isActive
                           ? "bg-cc-active text-cc-fg"
                           : "text-cc-muted hover:text-cc-fg hover:bg-cc-hover"
@@ -685,22 +676,14 @@ export function Sidebar() {
                     >
                       <span
                         aria-hidden
-                        className={`h-5 w-0.5 shrink-0 rounded-full transition-colors ${
+                        className={`h-4 w-0.5 shrink-0 rounded-full transition-colors ${
                           isActive ? "bg-cc-primary" : "bg-transparent group-hover:bg-cc-border"
                         }`}
                       />
-                      <svg viewBox={item.viewBox} fill="currentColor" className="w-4 h-4 shrink-0">
+                      <svg viewBox={item.viewBox} fill="currentColor" className="w-3.5 h-3.5 shrink-0">
                         <path d={item.iconPath} fillRule={item.fillRule} clipRule={item.clipRule} />
                       </svg>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[12px] font-medium leading-tight">{item.label}</span>
-                        <span className={`block text-[10px] leading-tight ${
-                          isActive ? "text-cc-muted" : "text-cc-muted/80 group-hover:text-cc-muted"
-                        }`}
-                        >
-                          {NAV_HELPERS[item.id]}
-                        </span>
-                      </span>
+                      <span className="min-w-0 flex-1 text-[12px] font-medium leading-tight">{item.label}</span>
                     </button>
                   );
                 })}
@@ -708,9 +691,9 @@ export function Sidebar() {
             </section>
           ))}
         </nav>
-        <div className="mt-2 rounded-lg border border-cc-border/30 bg-cc-card/25 px-1.5 py-1">
+        <div className="mt-1.5 rounded-lg border border-cc-border/30 bg-cc-card/20 px-1.5 py-0.5">
           <div className="flex items-center justify-between">
-            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-cc-muted/80">
+            <span className="px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-cc-muted/75">
               Resources
             </span>
             <div className="flex items-center gap-1">

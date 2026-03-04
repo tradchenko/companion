@@ -764,6 +764,13 @@ describe("Sidebar", () => {
     expect(screen.getByText("Resources")).toBeInTheDocument();
   });
 
+  it("compact nav does not render helper subtitle lines", () => {
+    // Verifies compact density mode: only primary labels are shown in nav items.
+    render(<Sidebar />);
+    expect(screen.queryByText("Templates and prompt library")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connected tools and services")).not.toBeInTheDocument();
+  });
+
   it("session item has minimum touch target height", () => {
     const session = makeSession("s1");
     const sdk = makeSdkSession("s1");
