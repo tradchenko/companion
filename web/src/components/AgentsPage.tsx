@@ -3,6 +3,8 @@ import { api, type AgentInfo, type AgentExport, type AgentExecution, type McpSer
 import { getModelsForBackend, getDefaultModel, getAgentModesForBackend, getDefaultAgentMode } from "../utils/backends.js";
 import { FolderPicker } from "./FolderPicker.js";
 import { timeAgo } from "../utils/time-ago.js";
+import { useStore } from "../store.js";
+import { PublicUrlBanner } from "./PublicUrlBanner.js";
 import type { Route } from "../utils/routing.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -189,13 +191,13 @@ function humanizeSchedule(expression: string, recurring: boolean): string {
   return expression;
 }
 
-function getWebhookUrl(agent: AgentInfo): string {
-  const base = window.location.origin;
+function getWebhookUrl(agent: AgentInfo, publicUrl: string): string {
+  const base = publicUrl || window.location.origin;
   return `${base}/api/agents/${encodeURIComponent(agent.id)}/webhook/${agent.triggers?.webhook?.secret || ""}`;
 }
 
-function getChatWebhookUrl(agentId: string, platform: string): string {
-  const base = window.location.origin;
+function getChatWebhookUrl(agentId: string, platform: string, publicUrl: string): string {
+  const base = publicUrl || window.location.origin;
   return `${base}/api/agents/${encodeURIComponent(agentId)}/chat/webhooks/${encodeURIComponent(platform)}`;
 }
 
@@ -217,6 +219,7 @@ function countAdvancedFeatures(form: AgentFormData): number {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function AgentsPage({ route }: Props) {
+  const publicUrl = useStore((s) => s.publicUrl);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "edit">("list");
@@ -473,7 +476,7 @@ export function AgentsPage({ route }: Props) {
   }
 
   function copyWebhookUrl(agent: AgentInfo) {
-    const url = getWebhookUrl(agent);
+    const url = getWebhookUrl(agent, publicUrl);
     navigator.clipboard.writeText(url).then(() => {
       setCopiedWebhook(agent.id);
       setTimeout(() => setCopiedWebhook(null), 2000);
@@ -497,6 +500,7 @@ export function AgentsPage({ route }: Props) {
       form={form}
       setForm={setForm}
       editingId={editingId}
+      publicUrl={publicUrl}
       error={error}
       saving={saving}
       onSave={handleSave}
@@ -542,6 +546,8 @@ export function AgentsPage({ route }: Props) {
           </div>
         )}
 
+        <PublicUrlBanner publicUrl={publicUrl} />
+
         {/* Agent Cards */}
         {loading ? (
           <div className="text-sm text-cc-muted">Loading...</div>
@@ -559,6 +565,7 @@ export function AgentsPage({ route }: Props) {
               <AgentCard
                 key={agent.id}
                 agent={agent}
+                publicUrl={publicUrl}
                 onEdit={() => startEdit(agent)}
                 onDelete={() => handleDelete(agent.id)}
                 onToggle={() => handleToggle(agent.id)}
@@ -617,6 +624,7 @@ export function AgentsPage({ route }: Props) {
 
 function AgentCard({
   agent,
+  publicUrl,
   onEdit,
   onDelete,
   onToggle,
@@ -627,6 +635,7 @@ function AgentCard({
   copiedWebhook,
 }: {
   agent: AgentInfo;
+  publicUrl: string;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
@@ -745,7 +754,7 @@ function AgentCard({
               <button
                 key={p.adapter}
                 onClick={() => {
-                  const url = getChatWebhookUrl(agent.id, p.adapter);
+                  const url = getChatWebhookUrl(agent.id, p.adapter, publicUrl);
                   navigator.clipboard.writeText(url);
                 }}
                 className="px-2 py-0.5 text-[10px] rounded-full bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors cursor-pointer"
@@ -772,6 +781,7 @@ function AgentEditor({
   form,
   setForm,
   editingId,
+  publicUrl,
   error,
   saving,
   onSave,
@@ -780,6 +790,7 @@ function AgentEditor({
   form: AgentFormData;
   setForm: (f: AgentFormData | ((prev: AgentFormData) => AgentFormData)) => void;
   editingId: string | null;
+  publicUrl: string;
   error: string;
   saving: boolean;
   onSave: () => void;
@@ -1404,6 +1415,37 @@ function AgentEditor({
                     {/* Credentials section */}
                     {platform.adapter === "linear" && (
                       <div className="space-y-1.5 pl-2 border-l-2 border-cc-border/30">
+                        {/* Guided Linear setup */}
+                        <details open={!platform.apiKey && !platform.clientId} className="text-[10px] text-cc-muted">
+                          <summary className="font-medium cursor-pointer hover:text-cc-fg transition-colors select-none">
+                            Linear Chat Setup Guide
+                          </summary>
+                          <ol className="mt-1.5 space-y-1.5 list-decimal list-inside">
+                            <li>
+                              <strong>Create a Linear API Key</strong> &mdash;{" "}
+                              Go to <a href="https://linear.app/settings/api" target="_blank" rel="noopener noreferrer" className="text-cc-primary underline">linear.app/settings/api</a>,
+                              create a key, and paste it below.
+                            </li>
+                            <li>
+                              <strong>Save this agent</strong> &mdash; The webhook URL and secret are auto-generated on save.
+                            </li>
+                            <li>
+                              <strong>Create a Linear Webhook</strong> &mdash;{" "}
+                              In <a href="https://linear.app/settings/api" target="_blank" rel="noopener noreferrer" className="text-cc-primary underline">Linear &rarr; Settings &rarr; API &rarr; Webhooks</a>,
+                              create a webhook with the URL and secret shown below. Enable <em>Comment</em> events (create, update).
+                              {!publicUrl && (
+                                <span className="block mt-0.5 text-amber-400">
+                                  No public URL configured &mdash; the webhook URL below uses your browser address which may not be reachable from Linear.{" "}
+                                  <a href="#/settings" className="underline hover:text-amber-300">Configure public URL</a>
+                                </span>
+                              )}
+                            </li>
+                            <li>
+                              <strong>Test it</strong> &mdash; Mention the bot username in a Linear issue comment.
+                            </li>
+                          </ol>
+                        </details>
+
                         <p className="text-[10px] text-cc-muted font-medium">Linear Credentials</p>
                         <input
                           type="password"
@@ -1539,19 +1581,32 @@ function AgentEditor({
 
                     {/* Webhook URL (shown for saved agents with credentials) */}
                     {editingId && (platform.apiKey || platform.clientId || platform.token || platform.appId) && (
-                      <div className="flex items-center gap-1.5 pl-2">
-                        <span className="text-[10px] text-cc-muted">Webhook URL:</span>
-                        <code className="text-[10px] text-cc-fg font-mono-code bg-cc-hover px-1.5 py-0.5 rounded truncate max-w-[300px]">
-                          {getChatWebhookUrl(editingId, platform.adapter)}
-                        </code>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(getChatWebhookUrl(editingId, platform.adapter));
-                          }}
-                          className="text-[10px] text-cc-primary hover:text-cc-primary/80 cursor-pointer"
-                        >
-                          Copy
-                        </button>
+                      <div className="space-y-1 pl-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-cc-muted">Webhook URL:</span>
+                          <code className="text-[10px] text-cc-fg font-mono-code bg-cc-hover px-1.5 py-0.5 rounded truncate max-w-[300px]">
+                            {getChatWebhookUrl(editingId, platform.adapter, publicUrl)}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(getChatWebhookUrl(editingId, platform.adapter, publicUrl));
+                            }}
+                            className="text-[10px] text-cc-primary hover:text-cc-primary/80 cursor-pointer"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                        {/* HTTPS warning for Linear */}
+                        {platform.adapter === "linear" && !getChatWebhookUrl(editingId, platform.adapter, publicUrl).startsWith("https://") && (
+                          <p className="text-[10px] text-amber-400">
+                            Linear requires HTTPS webhook URLs.{" "}
+                            {!publicUrl ? (
+                              <a href="#/settings" className="underline hover:text-amber-300">Configure a public HTTPS URL in Settings</a>
+                            ) : (
+                              <span>Your public URL must use HTTPS.</span>
+                            )}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
