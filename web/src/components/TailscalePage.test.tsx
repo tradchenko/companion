@@ -19,17 +19,23 @@ vi.mock("../api.js", () => ({
   },
 }));
 
+// Shared mock store state so tests can configure publicUrl and assert setPublicUrl calls
+const mockSetPublicUrl = vi.fn();
+let mockPublicUrl = "";
+
 vi.mock("../store.js", () => ({
   useStore: Object.assign(
     (selector: (s: Record<string, unknown>) => unknown) =>
       selector({
         currentSessionId: null,
-        setPublicUrl: vi.fn(),
+        publicUrl: mockPublicUrl,
+        setPublicUrl: mockSetPublicUrl,
       }),
     {
       getState: () => ({
         currentSessionId: null,
-        setPublicUrl: vi.fn(),
+        publicUrl: mockPublicUrl,
+        setPublicUrl: mockSetPublicUrl,
       }),
     },
   ),
@@ -44,6 +50,7 @@ import { TailscalePage } from "./TailscalePage.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPublicUrl = "";
 });
 
 describe("TailscalePage", () => {
@@ -281,5 +288,124 @@ describe("TailscalePage", () => {
 
     // Should show a fallback message rather than crashing
     expect(await screen.findByText("Could not check Tailscale status.")).toBeInTheDocument();
+  });
+
+  // Error recovery: re-fetches status after Enable fails, shows error overlay
+  it("re-fetches status and shows error when Enable fails", async () => {
+    const user = userEvent.setup();
+
+    mockApi.getTailscaleStatus.mockResolvedValue({
+      installed: true,
+      binaryPath: "/usr/bin/tailscale",
+      connected: true,
+      dnsName: "my-machine.ts.net",
+      funnelActive: false,
+      funnelUrl: null,
+      error: null,
+    });
+
+    // startTailscaleFunnel rejects (e.g. 503 thrown as Error)
+    mockApi.startTailscaleFunnel.mockRejectedValue(new Error("Permission denied"));
+
+    render(<TailscalePage embedded />);
+
+    const enableBtn = await screen.findByRole("button", { name: /enable https/i });
+    await user.click(enableBtn);
+
+    // Error message should appear
+    expect(await screen.findByText(/Permission denied/)).toBeInTheDocument();
+
+    // getTailscaleStatus called twice: once on mount, once on error recovery
+    await waitFor(() => {
+      expect(mockApi.getTailscaleStatus).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // Error recovery: re-fetches status after Disable fails
+  it("re-fetches status and shows error when Disable fails", async () => {
+    const user = userEvent.setup();
+
+    mockApi.getTailscaleStatus.mockResolvedValue({
+      installed: true,
+      binaryPath: "/usr/bin/tailscale",
+      connected: true,
+      dnsName: "my-machine.ts.net",
+      funnelActive: true,
+      funnelUrl: "https://my-machine.ts.net",
+      error: null,
+    });
+
+    mockApi.stopTailscaleFunnel.mockRejectedValue(new Error("Stop failed"));
+
+    render(<TailscalePage embedded />);
+
+    const disableBtn = await screen.findByRole("button", { name: /disable funnel/i });
+    await user.click(disableBtn);
+
+    expect(await screen.findByText(/Stop failed/)).toBeInTheDocument();
+  });
+
+  // Regression: onDisableFunnel does NOT clear publicUrl if user manually set a different URL
+  it("does not clear publicUrl when store URL differs from funnel URL", async () => {
+    const user = userEvent.setup();
+
+    // Store has a manually-set URL that differs from the funnel
+    mockPublicUrl = "https://custom-domain.example.com";
+
+    mockApi.getTailscaleStatus.mockResolvedValue({
+      installed: true,
+      binaryPath: "/usr/bin/tailscale",
+      connected: true,
+      dnsName: "my-machine.ts.net",
+      funnelActive: true,
+      funnelUrl: "https://my-machine.ts.net",
+      error: null,
+    });
+
+    mockApi.stopTailscaleFunnel.mockResolvedValue({
+      installed: true,
+      binaryPath: "/usr/bin/tailscale",
+      connected: true,
+      dnsName: "my-machine.ts.net",
+      funnelActive: false,
+      funnelUrl: null,
+      error: null,
+    });
+
+    render(<TailscalePage embedded />);
+
+    const disableBtn = await screen.findByRole("button", { name: /disable funnel/i });
+    await user.click(disableBtn);
+
+    await waitFor(() => {
+      expect(mockApi.stopTailscaleFunnel).toHaveBeenCalledTimes(1);
+    });
+
+    // setPublicUrl should NOT have been called because store URL doesn't match funnel URL
+    expect(mockSetPublicUrl).not.toHaveBeenCalled();
+  });
+
+  // Navigation: Integrations button navigates back to integrations hub
+  it("Integrations button navigates to integrations page", async () => {
+    mockApi.getTailscaleStatus.mockResolvedValue({
+      installed: true,
+      binaryPath: "/usr/bin/tailscale",
+      connected: true,
+      dnsName: "my-machine.ts.net",
+      funnelActive: false,
+      funnelUrl: null,
+      error: null,
+    });
+
+    render(<TailscalePage embedded />);
+
+    await screen.findByText("Tailscale Settings");
+
+    const integrationsBtn = screen.getByRole("button", { name: "Integrations" });
+    integrationsBtn.click();
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe("#/integrations");
+    });
   });
 });

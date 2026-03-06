@@ -46,7 +46,7 @@ function mockSpawnImpl() {
 }
 
 vi.mock("node:child_process", () => ({
-  execSync: vi.fn(),
+  spawnSync: vi.fn(),
   spawn: vi.fn(() => mockSpawnImpl()),
 }));
 
@@ -60,7 +60,7 @@ vi.mock("node:fs", () => ({
 
 import { resolveBinary } from "./path-resolver.js";
 import { updateSettings, getSettings } from "./settings-manager.js";
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import {
   getTailscaleStatus,
@@ -72,7 +72,7 @@ import {
 } from "./tailscale-manager.js";
 
 const mockResolveBinary = vi.mocked(resolveBinary);
-const mockExecSync = vi.mocked(execSync);
+const mockSpawnSync = vi.mocked(spawnSync);
 const mockUpdateSettings = vi.mocked(updateSettings);
 const mockGetSettings = vi.mocked(getSettings);
 const mockExistsSync = vi.mocked(existsSync);
@@ -389,7 +389,7 @@ describe("restoreIfNeeded", () => {
 });
 
 // ── cleanup ─────────────────────────────────────────────────────────────────
-// cleanup() still uses execSync (synchronous) because it runs before process.exit
+// cleanup() uses spawnSync (synchronous) because it runs before process.exit
 
 describe("cleanup", () => {
   it("is a no-op when COMPANION_TAILSCALE_CLEANUP_ON_EXIT is not set", () => {
@@ -398,19 +398,21 @@ describe("cleanup", () => {
 
     cleanup(3456);
 
-    // execSync should not have been called for the funnel off command
-    expect(mockExecSync).not.toHaveBeenCalled();
+    // spawnSync should not have been called for the funnel off command
+    expect(mockSpawnSync).not.toHaveBeenCalled();
   });
 
   it("stops funnel when COMPANION_TAILSCALE_CLEANUP_ON_EXIT=1", () => {
     process.env.COMPANION_TAILSCALE_CLEANUP_ON_EXIT = "1";
     mockResolveBinary.mockReturnValue("/usr/bin/tailscale");
-    mockExecSync.mockReturnValue("");
+    mockSpawnSync.mockReturnValue({ status: 0 } as ReturnType<typeof spawnSync>);
 
     cleanup(3456);
 
-    expect(mockExecSync).toHaveBeenCalledWith(
-      expect.stringContaining("funnel 3456 off"),
+    // Should call spawnSync with arg array (no shell interpolation)
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      "/usr/bin/tailscale",
+      ["funnel", "3456", "off"],
       expect.any(Object),
     );
 

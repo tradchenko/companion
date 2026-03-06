@@ -7,7 +7,7 @@
  * server restarts.
  */
 
-import { execSync, spawn } from "node:child_process";
+import { spawnSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -359,7 +359,7 @@ export async function restoreIfNeeded(port: number): Promise<void> {
 }
 
 /**
- * Best-effort cleanup on server shutdown. Uses execSync since process.exit follows.
+ * Best-effort cleanup on server shutdown. Uses spawnSync since process.exit follows.
  * By default, leaves Funnel running (it's a system daemon).
  * Set COMPANION_TAILSCALE_CLEANUP_ON_EXIT=1 to stop on shutdown.
  */
@@ -371,10 +371,7 @@ export function cleanup(port: number): void {
   if (!binary) return;
 
   try {
-    // execSync with arg array via shell=false is not available, but we control
-    // both `binary` (from `which`) and `port` (validated integer from server config).
-    // Using spawnSync would be ideal but execSync is needed for pre-exit reliability.
-    execSync(`${binary} funnel ${Number(port)} off`, {
+    spawnSync(binary, ["funnel", String(port), "off"], {
       encoding: "utf-8",
       timeout: 5_000,
       stdio: ["pipe", "pipe", "pipe"],

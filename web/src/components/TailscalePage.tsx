@@ -20,6 +20,12 @@ export function TailscalePage({ embedded = false }: TailscalePageProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  /** Re-fetch status so the UI reflects the actual backend state after errors. */
+  async function refreshStatus() {
+    const fresh = await api.getTailscaleStatus().catch(() => null);
+    if (fresh) setStatus(fresh);
+  }
+
   async function onEnableFunnel() {
     setActionLoading(true);
     try {
@@ -29,6 +35,8 @@ export function TailscalePage({ embedded = false }: TailscalePageProps) {
         useStore.getState().setPublicUrl(result.funnelUrl);
       }
     } catch (err: unknown) {
+      // Re-fetch so displayed status stays consistent with backend
+      await refreshStatus();
       setStatus((prev) =>
         prev ? { ...prev, error: err instanceof Error ? err.message : String(err) } : null,
       );
@@ -49,6 +57,7 @@ export function TailscalePage({ embedded = false }: TailscalePageProps) {
         useStore.getState().setPublicUrl("");
       }
     } catch (err: unknown) {
+      await refreshStatus();
       setStatus((prev) =>
         prev ? { ...prev, error: err instanceof Error ? err.message : String(err) } : null,
       );
