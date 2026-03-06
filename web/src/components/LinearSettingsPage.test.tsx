@@ -4,6 +4,7 @@ import "@testing-library/jest-dom";
 
 interface MockStoreState {
   currentSessionId: string | null;
+  publicUrl: string;
 }
 
 let mockState: MockStoreState;
@@ -40,7 +41,7 @@ import { LinearSettingsPage } from "./LinearSettingsPage.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockState = { currentSessionId: null };
+  mockState = { currentSessionId: null, publicUrl: "" };
   mockApi.getSettings.mockResolvedValue({
     anthropicApiKeyConfigured: false,
     anthropicModel: "claude-sonnet-4.6",
@@ -219,5 +220,183 @@ describe("LinearSettingsPage — archive transition settings", () => {
         linearArchiveTransitionStateName: "Backlog",
       });
     });
+  });
+});
+
+describe("LinearSettingsPage — OAuth Agent App section", () => {
+  it("renders the Linear Agent App section", async () => {
+    // Verifies that the OAuth section renders with its heading
+    render(<LinearSettingsPage />);
+    expect(await screen.findByText("Linear Agent App")).toBeInTheDocument();
+  });
+
+  it("shows 'Not configured' status when OAuth is not set up", async () => {
+    // Verifies the status text when no OAuth credentials are configured
+    render(<LinearSettingsPage />);
+    expect(await screen.findByText("Not configured")).toBeInTheDocument();
+  });
+
+  it("renders all OAuth input fields", async () => {
+    // Verifies all three credential fields are present
+    render(<LinearSettingsPage />);
+    await screen.findByText("Linear Agent App");
+
+    expect(screen.getByLabelText("Client ID")).toBeInTheDocument();
+    expect(screen.getByLabelText("Client Secret")).toBeInTheDocument();
+    expect(screen.getByLabelText("Webhook Signing Secret")).toBeInTheDocument();
+  });
+
+  it("saves OAuth credentials when Save Credentials is clicked", async () => {
+    // Verifies that entering credentials and clicking Save Credentials
+    // calls updateSettings with the trimmed values
+    render(<LinearSettingsPage />);
+    await screen.findByText("Linear Agent App");
+
+    fireEvent.change(screen.getByLabelText("Client ID"), {
+      target: { value: "  my-client-id  " },
+    });
+    fireEvent.change(screen.getByLabelText("Client Secret"), {
+      target: { value: "  my-secret  " },
+    });
+    fireEvent.change(screen.getByLabelText("Webhook Signing Secret"), {
+      target: { value: "  wh-secret  " },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Credentials" }));
+
+    await waitFor(() => {
+      expect(mockApi.updateSettings).toHaveBeenCalledWith({
+        linearOAuthClientId: "my-client-id",
+        linearOAuthClientSecret: "my-secret",
+        linearOAuthWebhookSecret: "wh-secret",
+      });
+    });
+  });
+
+  it("shows connected status when OAuth has access token", async () => {
+    // Verifies the connected badge and status text when OAuth is fully configured
+    mockApi.getLinearOAuthStatus.mockResolvedValue({
+      configured: true,
+      hasClientId: true,
+      hasClientSecret: true,
+      hasWebhookSecret: true,
+      hasAccessToken: true,
+    });
+    mockApi.getSettings.mockResolvedValue({
+      anthropicApiKeyConfigured: false,
+      anthropicModel: "claude-sonnet-4.6",
+      linearApiKeyConfigured: true,
+      linearAutoTransition: false,
+      linearAutoTransitionStateName: "",
+      linearArchiveTransition: false,
+      linearArchiveTransitionStateName: "",
+      linearOAuthConfigured: true,
+    });
+
+    render(<LinearSettingsPage />);
+
+    // Should show the agent status text indicating it's connected
+    expect(await screen.findByText(/agents with the Linear trigger/i)).toBeInTheDocument();
+  });
+
+  it("opens OAuth authorize URL when Install to Workspace is clicked", async () => {
+    // Verifies that clicking Install to Workspace calls the API and opens the URL
+    mockApi.getLinearOAuthStatus.mockResolvedValue({
+      configured: true,
+      hasClientId: true,
+      hasClientSecret: true,
+      hasWebhookSecret: false,
+      hasAccessToken: false,
+    });
+    mockApi.getSettings.mockResolvedValue({
+      anthropicApiKeyConfigured: false,
+      anthropicModel: "claude-sonnet-4.6",
+      linearApiKeyConfigured: true,
+      linearAutoTransition: false,
+      linearAutoTransitionStateName: "",
+      linearArchiveTransition: false,
+      linearArchiveTransitionStateName: "",
+      linearOAuthConfigured: true,
+    });
+    mockApi.getLinearOAuthAuthorizeUrl.mockResolvedValue({
+      url: "https://linear.app/oauth/authorize?client_id=test",
+    });
+
+    // Mock window.open
+    const originalOpen = window.open;
+    window.open = vi.fn();
+
+    render(<LinearSettingsPage />);
+    await screen.findByText("Linear Agent App");
+
+    // Wait for the status to load (sets oauthConfigured)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Install to Workspace" })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Install to Workspace" }));
+
+    await waitFor(() => {
+      expect(mockApi.getLinearOAuthAuthorizeUrl).toHaveBeenCalled();
+    });
+    expect(window.open).toHaveBeenCalledWith(
+      "https://linear.app/oauth/authorize?client_id=test",
+      "_self",
+    );
+
+    window.open = originalOpen;
+  });
+
+  it("disconnects OAuth when Disconnect is clicked", async () => {
+    // Verifies that clicking Disconnect calls the disconnect API
+    mockApi.getLinearOAuthStatus.mockResolvedValue({
+      configured: true,
+      hasClientId: true,
+      hasClientSecret: true,
+      hasWebhookSecret: true,
+      hasAccessToken: true,
+    });
+    mockApi.getSettings.mockResolvedValue({
+      anthropicApiKeyConfigured: false,
+      anthropicModel: "claude-sonnet-4.6",
+      linearApiKeyConfigured: true,
+      linearAutoTransition: false,
+      linearAutoTransitionStateName: "",
+      linearArchiveTransition: false,
+      linearArchiveTransitionStateName: "",
+      linearOAuthConfigured: true,
+    });
+
+    render(<LinearSettingsPage />);
+
+    // Wait for the OAuth connected status text (unique to the OAuth section)
+    await screen.findByText(/agents with the Linear trigger/i);
+
+    // Find and click the OAuth Disconnect button (not the API key Disconnect)
+    // The OAuth Disconnect button appears inside the Linear Agent App section
+    const disconnectButtons = screen.getAllByRole("button", { name: "Disconnect" });
+    // The OAuth disconnect is the last one (after the API key disconnect)
+    fireEvent.click(disconnectButtons[disconnectButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(mockApi.disconnectLinearOAuth).toHaveBeenCalled();
+    });
+  });
+
+  it("shows setup guide details section", async () => {
+    // Verifies the expandable setup guide is present
+    render(<LinearSettingsPage />);
+    await screen.findByText("Linear Agent App");
+
+    expect(screen.getByText("Setup guide")).toBeInTheDocument();
+  });
+
+  it("disables Save Credentials when no fields are filled", async () => {
+    // Verifies the button is disabled when all OAuth fields are empty
+    render(<LinearSettingsPage />);
+    await screen.findByText("Linear Agent App");
+
+    const saveBtn = screen.getByRole("button", { name: "Save Credentials" });
+    expect(saveBtn).toBeDisabled();
   });
 });

@@ -263,6 +263,150 @@ describe("LinearAgentBridge", () => {
     });
   });
 
+  describe("relay — assistant message callbacks", () => {
+    // These tests exercise the relay callback functions that are registered
+    // inside setupRelay. We capture the callbacks via mock spies and invoke
+    // them with synthetic BrowserIncomingMessage payloads.
+
+    async function createSessionAndCaptureCallbacks() {
+      vi.mocked(agentStore.listAgents).mockReturnValue([testAgent] as ReturnType<typeof agentStore.listAgents>);
+      vi.mocked(executor.executeAgent).mockResolvedValue({ sessionId: "comp-sess-1" } as never);
+      await bridge.handleEvent(makeCreatedEvent());
+
+      // Capture the callbacks registered by setupRelay
+      const assistantCb = vi.mocked(wsBridge.onAssistantMessageForSession).mock.calls[0][1];
+      const resultCb = vi.mocked(wsBridge.onResultForSession).mock.calls[0][1];
+      vi.clearAllMocks(); // clear previous postActivity calls
+      return { assistantCb, resultCb };
+    }
+
+    it("relays assistant text content as a response on turn completion", async () => {
+      const { assistantCb, resultCb } = await createSessionAndCaptureCallbacks();
+
+      // Simulate an assistant message with text content
+      assistantCb({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Here is the fix for the login bug." },
+          ],
+        },
+      } as never);
+
+      // Trigger turn completion — should post the accumulated text as a response
+      await resultCb({} as never);
+
+      expect(linearAgent.postActivity).toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "response", body: "Here is the fix for the login bug." }),
+      );
+    });
+
+    it("relays tool use as action activities", async () => {
+      const { assistantCb } = await createSessionAndCaptureCallbacks();
+
+      // Simulate an assistant message with a tool_use content block
+      assistantCb({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", name: "Edit", input: { file: "login.ts", line: 42 } },
+          ],
+        },
+      } as never);
+
+      expect(linearAgent.postActivity).toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({
+          type: "action",
+          action: "Edit",
+        }),
+      );
+    });
+
+    it("accumulates text across multiple assistant messages", async () => {
+      const { assistantCb, resultCb } = await createSessionAndCaptureCallbacks();
+
+      // Two assistant messages before turn completion
+      assistantCb({
+        type: "assistant",
+        message: { content: [{ type: "text", text: "Line 1" }] },
+      } as never);
+      assistantCb({
+        type: "assistant",
+        message: { content: [{ type: "text", text: "Line 2" }] },
+      } as never);
+
+      await resultCb({} as never);
+
+      // Should accumulate both into one response
+      expect(linearAgent.postActivity).toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "response", body: "Line 1\nLine 2" }),
+      );
+    });
+
+    it("does not post empty response when no text was accumulated", async () => {
+      const { resultCb } = await createSessionAndCaptureCallbacks();
+
+      // Turn completes with no assistant messages
+      await resultCb({} as never);
+
+      // Should not post a response activity
+      expect(linearAgent.postActivity).not.toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "response" }),
+      );
+    });
+
+    it("ignores non-assistant messages in text extraction", async () => {
+      const { assistantCb, resultCb } = await createSessionAndCaptureCallbacks();
+
+      // A non-assistant message type should be ignored
+      assistantCb({ type: "system", message: "hello" } as never);
+
+      await resultCb({} as never);
+
+      // No response should be posted
+      expect(linearAgent.postActivity).not.toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "response" }),
+      );
+    });
+
+    it("handles assistant messages without message.content gracefully", async () => {
+      const { assistantCb, resultCb } = await createSessionAndCaptureCallbacks();
+
+      // Assistant message with no content array
+      assistantCb({ type: "assistant", message: {} } as never);
+      assistantCb({ type: "assistant" } as never);
+
+      await resultCb({} as never);
+
+      // No text accumulated → no response
+      expect(linearAgent.postActivity).not.toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "response" }),
+      );
+    });
+
+    it("extracts tool use without input gracefully", async () => {
+      const { assistantCb } = await createSessionAndCaptureCallbacks();
+
+      assistantCb({
+        type: "assistant",
+        message: {
+          content: [{ type: "tool_use", name: "Read" }],
+        },
+      } as never);
+
+      expect(linearAgent.postActivity).toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "action", action: "Read" }),
+      );
+    });
+  });
+
   describe("shutdown", () => {
     it("cleans up all session mappings and relay listeners", async () => {
       // Create a session
