@@ -2563,6 +2563,44 @@ describe("AgentsPage", () => {
     expect(webhookInput.value).toBe("new_gh_secret");
   });
 
+  it("shows placeholder instead of masked dots for configured webhook secret", async () => {
+    // When the backend returns a masked webhookSecret (e.g. "whs_****"), the input
+    // should render an empty value so the placeholder text is visible instead of
+    // opaque password dots.
+    const agent = makeAgent({
+      id: "masked-ws",
+      name: "Masked WS Agent",
+      triggers: {
+        webhook: { enabled: false, secret: "" },
+        schedule: { enabled: false, expression: "0 8 * * *", recurring: true },
+        chat: {
+          enabled: true,
+          platforms: [
+            {
+              adapter: "linear",
+              autoSubscribe: true,
+              credentials: {
+                apiKey: "lin_****",
+                webhookSecret: "whs_****",
+                userName: "bot",
+              },
+            },
+          ],
+        },
+      },
+    });
+    mockApi.listAgents.mockResolvedValue([agent]);
+    render(<AgentsPage route={defaultRoute} />);
+
+    await screen.findByText("Masked WS Agent");
+    fireEvent.click(screen.getByTitle("Edit"));
+
+    const webhookInput = screen.getByLabelText("Linear Webhook Secret") as HTMLInputElement;
+    // Value should be empty so the placeholder is visible
+    expect(webhookInput.value).toBe("");
+    expect(webhookInput.placeholder).toContain("Configured");
+  });
+
   it("webhook URL is displayed for saved agents with credentials", async () => {
     // When editing an existing agent that has chat credentials configured,
     // the webhook URL should be displayed with a copy button.
