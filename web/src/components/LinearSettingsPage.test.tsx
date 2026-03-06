@@ -13,6 +13,9 @@ const mockApi = {
   updateSettings: vi.fn(),
   getLinearConnection: vi.fn(),
   getLinearStates: vi.fn(),
+  getLinearOAuthStatus: vi.fn(),
+  getLinearOAuthAuthorizeUrl: vi.fn(),
+  disconnectLinearOAuth: vi.fn(),
 };
 
 vi.mock("../api.js", () => ({
@@ -21,6 +24,9 @@ vi.mock("../api.js", () => ({
     updateSettings: (...args: unknown[]) => mockApi.updateSettings(...args),
     getLinearConnection: (...args: unknown[]) => mockApi.getLinearConnection(...args),
     getLinearStates: (...args: unknown[]) => mockApi.getLinearStates(...args),
+    getLinearOAuthStatus: (...args: unknown[]) => mockApi.getLinearOAuthStatus(...args),
+    getLinearOAuthAuthorizeUrl: (...args: unknown[]) => mockApi.getLinearOAuthAuthorizeUrl(...args),
+    disconnectLinearOAuth: (...args: unknown[]) => mockApi.disconnectLinearOAuth(...args),
   },
 }));
 
@@ -43,7 +49,9 @@ beforeEach(() => {
     linearAutoTransitionStateName: "",
     linearArchiveTransition: false,
     linearArchiveTransitionStateName: "",
+    linearOAuthConfigured: false,
   });
+  mockApi.getLinearOAuthStatus.mockResolvedValue({ configured: false, hasClientId: false, hasClientSecret: false, hasWebhookSecret: false, hasAccessToken: false });
   mockApi.updateSettings.mockResolvedValue({
     anthropicApiKeyConfigured: false,
     anthropicModel: "claude-sonnet-4.6",
