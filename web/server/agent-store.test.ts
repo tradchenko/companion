@@ -85,6 +85,33 @@ describe("listAgents", () => {
     expect(result[0].name).toBe("Valid Agent");
   });
 
+  it("strips legacy triggers.chat block from agents loaded from disk", () => {
+    // Simulate an agent saved with the old Chat SDK schema that has
+    // platform credentials embedded in triggers.chat. The store should
+    // strip this block on load to prevent leaking secrets via the API.
+    const agent = agentStore.createAgent(makeAgentInput({ name: "Legacy Chat Agent" }));
+    const agentFile = join(agentsDir(), `${agent.id}.json`);
+    const raw = JSON.parse(readFileSync(agentFile, "utf-8"));
+    raw.triggers = {
+      ...raw.triggers,
+      chat: {
+        enabled: true,
+        platforms: [{
+          adapter: "github",
+          autoSubscribe: true,
+          credentials: { token: "ghp_secret123", webhookSecret: "wh_secret456" },
+        }],
+      },
+    };
+    writeFileSync(agentFile, JSON.stringify(raw), "utf-8");
+
+    const loaded = agentStore.listAgents();
+    const found = loaded.find((a) => a.id === agent.id);
+    expect(found).toBeDefined();
+    // The triggers.chat block should be stripped
+    expect((found!.triggers as Record<string, unknown>)?.chat).toBeUndefined();
+  });
+
   it("skips non-JSON files in the agents directory", () => {
     agentStore.createAgent(makeAgentInput({ name: "Legit Agent" }));
     writeFileSync(join(agentsDir(), "readme.txt"), "not an agent", "utf-8");
@@ -226,6 +253,25 @@ describe("getAgent", () => {
 
   it("returns null for non-existent ID", () => {
     expect(agentStore.getAgent("nonexistent-id")).toBeNull();
+  });
+
+  it("strips legacy triggers.chat block when loading a single agent", () => {
+    // Same as the listAgents test but verifies getAgent also strips chat.
+    const agent = agentStore.createAgent(makeAgentInput({ name: "Legacy Single" }));
+    const agentFile = join(agentsDir(), `${agent.id}.json`);
+    const raw = JSON.parse(readFileSync(agentFile, "utf-8"));
+    raw.triggers = {
+      ...raw.triggers,
+      chat: {
+        enabled: true,
+        platforms: [{ adapter: "github", credentials: { token: "secret" } }],
+      },
+    };
+    writeFileSync(agentFile, JSON.stringify(raw), "utf-8");
+
+    const loaded = agentStore.getAgent(agent.id);
+    expect(loaded).not.toBeNull();
+    expect((loaded!.triggers as Record<string, unknown>)?.chat).toBeUndefined();
   });
 });
 

@@ -39,6 +39,19 @@ function generateWebhookSecret(): string {
   return randomBytes(24).toString("hex");
 }
 
+/**
+ * Strip the legacy `triggers.chat` block from agents loaded from disk.
+ * The Chat SDK was removed but agents saved with the old schema may still
+ * have chat platform credentials on disk. Stripping on load prevents
+ * leaking those secrets via the API.
+ */
+function stripLegacyChatTrigger(agent: AgentConfig): AgentConfig {
+  if (!agent.triggers || !("chat" in agent.triggers)) return agent;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { chat: _chat, ...rest } = agent.triggers as Record<string, unknown>;
+  return { ...agent, triggers: rest as AgentConfig["triggers"] };
+}
+
 // ─── CRUD ───────────────────────────────────────────────────────────────────
 
 export function listAgents(): AgentConfig[] {
@@ -49,7 +62,7 @@ export function listAgents(): AgentConfig[] {
     for (const file of files) {
       try {
         const raw = readFileSync(join(AGENTS_DIR, file), "utf-8");
-        agents.push(JSON.parse(raw));
+        agents.push(stripLegacyChatTrigger(JSON.parse(raw)));
       } catch {
         // Skip corrupt files
       }
@@ -65,7 +78,7 @@ export function getAgent(id: string): AgentConfig | null {
   ensureDir();
   try {
     const raw = readFileSync(filePath(id), "utf-8");
-    return JSON.parse(raw) as AgentConfig;
+    return stripLegacyChatTrigger(JSON.parse(raw) as AgentConfig);
   } catch {
     return null;
   }
