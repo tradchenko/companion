@@ -21,7 +21,7 @@ vi.mock("chat", () => ({
 }));
 
 vi.mock("@chat-adapter/github", () => ({
-  createGithubAdapter: vi.fn(() => ({ type: "github-adapter" })),
+  createGitHubAdapter: vi.fn(() => ({ type: "github-adapter" })),
 }));
 
 vi.mock("@chat-adapter/state-memory", () => ({
