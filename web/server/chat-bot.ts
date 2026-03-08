@@ -75,9 +75,6 @@ export class ChatBot {
   /** Per-agent Chat SDK runtimes. Key = agentId */
   private runtimes = new Map<string, AgentChatRuntime>();
 
-  /** Legacy global Chat SDK instance for env-var based setup (deprecated) */
-  private legacyChat: Chat<Record<string, Adapter>, CompanionThreadState> | null = null;
-
   private sessionUnsubscribers = new Map<string, Array<() => void>>();
   private agentExecutor: AgentExecutor;
   private wsBridge: WsBridge;
@@ -88,18 +85,12 @@ export class ChatBot {
   }
 
   /**
-   * Initialize Chat SDK instances:
-   * 1. Legacy global instance from env vars (deprecated fallback)
-   * 2. Per-agent instances from agent chat credentials
+   * Initialize per-agent Chat SDK instances from stored agent credentials.
    * Returns true if at least one adapter was initialized.
    */
   initialize(): boolean {
     let anyInitialized = false;
 
-    // Legacy global Linear env var setup removed — use the Linear Agent Interaction SDK instead.
-    // If LINEAR_API_KEY env var is set, it's only used for issue context injection (settings-manager).
-
-    // ── Per-agent instances from stored credentials ──
     const agents = agentStore.listAgents();
     for (const agent of agents) {
       if (this.initializeAgentRuntime(agent)) {
@@ -207,16 +198,16 @@ export class ChatBot {
 
   /**
    * Get the legacy global webhooks handler map for Hono route delegation.
-   * Used by the deprecated global webhook route.
+   * Always returns empty — legacy global init was removed. Per-agent webhook
+   * handlers should be accessed via getWebhookHandler() instead.
    */
   get webhooks(): Record<string, WebhookHandler> {
-    if (!this.legacyChat) return {};
-    return this.legacyChat.webhooks as Record<string, WebhookHandler>;
+    return {};
   }
 
-  /** Get list of legacy global platform names */
+  /** Get list of legacy global platform names (always empty — use listAgentPlatforms) */
   get platforms(): string[] {
-    return Object.keys(this.webhooks);
+    return [];
   }
 
   /** Get per-agent platform status for the platform listing endpoint */
@@ -231,56 +222,6 @@ export class ChatBot {
       });
     }
     return result;
-  }
-
-  // ── Legacy global handlers (deprecated env-var based setup) ──
-
-  /**
-   * Register handlers on the legacy global Chat SDK instance.
-   * These scan all agents to find a match (the old behavior).
-   */
-  private registerLegacyHandlers(): void {
-    if (!this.legacyChat) return;
-
-    this.legacyChat.onNewMention(async (thread: Thread<CompanionThreadState>, message: ChatMessage) => {
-      await this.handleLegacyMention(thread, message);
-    });
-
-    this.legacyChat.onSubscribedMessage(async (thread: Thread<CompanionThreadState>, message: ChatMessage) => {
-      await this.handleLegacySubscribedMessage(thread, message);
-    });
-  }
-
-  /**
-   * Legacy mention handler: find the right agent by scanning all agents,
-   * start a session, relay responses. Used when agents don't have per-binding credentials.
-   */
-  private async handleLegacyMention(thread: Thread<CompanionThreadState>, message: ChatMessage): Promise<void> {
-    const adapterName = this.getAdapterNameFromThread(thread);
-    const agent = this.findAgentForPlatform(adapterName, message.text);
-    if (!agent) {
-      await thread.post("No agent is configured to handle this platform. Configure an agent with a chat trigger in The Companion.");
-      return;
-    }
-
-    await this.startAgentSession(agent, adapterName, thread, message);
-  }
-
-  private async handleLegacySubscribedMessage(thread: Thread<CompanionThreadState>, message: ChatMessage): Promise<void> {
-    const state = await thread.state;
-    if (!state?.sessionId) {
-      await this.handleLegacyMention(thread, message);
-      return;
-    }
-
-    try {
-      await thread.startTyping("Processing...");
-      this.setupResponseRelay(state.sessionId, thread);
-      this.wsBridge.injectUserMessage(state.sessionId, message.text);
-    } catch (err) {
-      console.error("[chat-bot] Error handling subscribed message:", err);
-      await thread.post(`Error: ${err instanceof Error ? err.message : String(err)}`);
-    }
   }
 
   // ── Agent-scoped handlers (per-agent credentials) ──
@@ -427,33 +368,6 @@ export class ChatBot {
   }
 
   /**
-   * Find an agent configured to handle a specific platform (legacy global handler).
-   * Only matches agents that do NOT have per-binding credentials (those use agent-scoped handlers).
-   */
-  private findAgentForPlatform(adapterName: ChatAdapterName, messageText: string): AgentConfig | null {
-    const agents = agentStore.listAgents();
-
-    for (const agent of agents) {
-      if (!agent.enabled) continue;
-      if (!agent.triggers?.chat?.enabled) continue;
-
-      const binding = agent.triggers.chat.platforms?.find((p) => p.adapter === adapterName);
-      if (!binding) continue;
-
-      // Skip agents that have their own credentials — they use agent-scoped handlers
-      if (binding.credentials) continue;
-
-      if (binding.mentionPattern) {
-        if (!this.testMentionPattern(binding.mentionPattern, messageText)) continue;
-      }
-
-      return agent;
-    }
-
-    return null;
-  }
-
-  /**
    * Test a user-supplied regex pattern against text with ReDoS protection.
    */
   private testMentionPattern(pattern: string, text: string): boolean {
@@ -478,11 +392,5 @@ export class ChatBot {
       await runtime.chat.shutdown();
     }
     this.runtimes.clear();
-
-    // Shut down legacy global instance
-    if (this.legacyChat) {
-      await this.legacyChat.shutdown();
-      this.legacyChat = null;
-    }
   }
 }

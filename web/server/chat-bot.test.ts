@@ -200,38 +200,32 @@ describe("ChatBot", () => {
     });
   });
 
-  describe("webhooks", () => {
-    it("returns empty object when not initialized", () => {
-      // The legacy global webhooks getter returns empty when legacyChat is null.
+  describe("webhooks (legacy getter)", () => {
+    it("always returns empty object (legacy global init removed)", () => {
+      // The legacy global webhook getter always returns empty — per-agent
+      // handlers should be accessed via getWebhookHandler() instead.
       const executor = createMockExecutor();
       const wsBridge = createMockWsBridge();
       const bot = new ChatBot(executor as any, wsBridge as any);
 
-      // Not calling initialize()
       expect(bot.webhooks).toEqual({});
-    });
-
-    it("returns empty object when no legacy global instance is configured", () => {
-      // The legacy global instance is no longer created (Linear env vars removed).
-      // bot.webhooks returns empty since it reads from legacyChat.
-      const executor = createMockExecutor();
-      const wsBridge = createMockWsBridge();
-      const bot = new ChatBot(executor as any, wsBridge as any);
 
       vi.mocked(agentStore.listAgents).mockReturnValue([makeAgentWithCredentials()]);
       bot.initialize();
 
-      // webhooks is the legacy global getter — always empty now
       expect(bot.webhooks).toEqual({});
     });
   });
 
-  describe("platforms", () => {
-    it("returns empty array when no legacy global instance exists", () => {
-      // bot.platforms reads from legacyChat webhooks — empty without legacy init.
+  describe("platforms (legacy getter)", () => {
+    it("always returns empty array (legacy global init removed)", () => {
+      // The legacy global platforms getter always returns empty — per-agent
+      // platforms should be accessed via listAgentPlatforms() instead.
       const executor = createMockExecutor();
       const wsBridge = createMockWsBridge();
       const bot = new ChatBot(executor as any, wsBridge as any);
+
+      expect(bot.platforms).toEqual([]);
 
       vi.mocked(agentStore.listAgents).mockReturnValue([makeAgentWithCredentials()]);
       bot.initialize();
@@ -891,24 +885,10 @@ describe("ChatBot", () => {
     });
   });
 
-  // ─── Legacy global handler: findAgentForPlatform logic ────────────────────
-  // The legacy global handler (handleLegacyMention) scans all agents to find
-  // one without per-binding credentials. These tests exercise findAgentForPlatform
-  // by calling the legacy handlers directly through per-agent runtime setup that
-  // triggers the legacy fallback path.
-
-  describe("findAgentForPlatform credential filtering", () => {
-    // The findAgentForPlatform method is private but its behavior is tested
-    // indirectly through the legacy handler. Since the legacy env-var init was
-    // removed, we test this via the agent-scoped subscribed handler fallback:
-    // when a thread has no state, handleAgentSubscribedMessage calls
-    // handleAgentMention which doesn't use findAgentForPlatform.
-    // The credential filtering logic is covered through the per-agent runtime
-    // tests above — agents without credentials return false from initializeAgentRuntime.
-
+  describe("createAdapterForBinding edge cases", () => {
     it("initializeAgentRuntime skips agents with credentials that lack auth", () => {
-      // This indirectly tests that createAdapterForBinding returns null when
-      // credentials are present but don't have the required auth method.
+      // createAdapterForBinding returns null when credentials are present but
+      // don't have the required auth method (no token or appId+privateKey).
       const executor = createMockExecutor();
       const wsBridge = createMockWsBridge();
       const bot = new ChatBot(executor as any, wsBridge as any);

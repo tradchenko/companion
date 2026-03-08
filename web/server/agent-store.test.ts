@@ -1107,7 +1107,7 @@ describe("ensureChatWebhookSecrets", () => {
     expect(creds.token).toBe("ghp_secret");
     expect(creds.webhookSecret).toBe("whs_github");
     expect(creds.userName).toBe("my-bot");
-    // Should NOT have slack's token (which was "xoxb_secret")
-    expect(creds.appId).toBeUndefined();
+    // Verify GitHub creds were NOT contaminated with Slack's values
+    expect(creds.token).not.toBe("xoxb_secret");
   });
 });

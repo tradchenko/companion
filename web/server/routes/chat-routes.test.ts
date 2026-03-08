@@ -49,14 +49,14 @@ describe("POST /api/chat/webhooks/:platform", () => {
   });
 
   it("delegates to the platform webhook handler and returns its response", async () => {
-    // Configure a mock handler for the "linear" platform that returns a 200
+    // Configure a mock handler for the "github" platform that returns a 200
     const mockHandler = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }));
-    chatBot.webhooks = { linear: mockHandler };
+    chatBot.webhooks = { github: mockHandler };
 
-    const res = await app.request("/api/chat/webhooks/linear", {
+    const res = await app.request("/api/chat/webhooks/github", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event: "test" }),
@@ -111,7 +111,7 @@ describe("POST /api/agents/:agentId/chat/webhooks/:platform", () => {
     );
     chatBot.getWebhookHandler.mockReturnValue(mockHandler);
 
-    const res = await app.request("/api/agents/agent-abc/chat/webhooks/linear", {
+    const res = await app.request("/api/agents/agent-abc/chat/webhooks/github", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event: "issue.created" }),
@@ -174,31 +174,31 @@ describe("GET /api/chat/platforms", () => {
   });
 
   it("lists all configured platform names", async () => {
-    chatBot.platforms = ["linear", "slack"];
+    chatBot.platforms = ["github", "slack"];
 
     const res = await app.request("/api/chat/platforms");
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.platforms).toEqual(["linear", "slack"]);
+    expect(body.platforms).toEqual(["github", "slack"]);
   });
 
   it("includes agentPlatforms in the response", async () => {
     // Verify that per-agent platform info is returned alongside legacy platforms
-    chatBot.platforms = ["linear"];
+    chatBot.platforms = ["github"];
     chatBot.listAgentPlatforms.mockReturnValue([
       { agentId: "agent-1", agentName: "Support Bot", platforms: ["slack", "discord"] },
-      { agentId: "agent-2", agentName: "Triage Bot", platforms: ["linear"] },
+      { agentId: "agent-2", agentName: "Triage Bot", platforms: ["github"] },
     ]);
 
     const res = await app.request("/api/chat/platforms");
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.platforms).toEqual(["linear"]);
+    expect(body.platforms).toEqual(["github"]);
     expect(body.agentPlatforms).toEqual([
       { agentId: "agent-1", agentName: "Support Bot", platforms: ["slack", "discord"] },
-      { agentId: "agent-2", agentName: "Triage Bot", platforms: ["linear"] },
+      { agentId: "agent-2", agentName: "Triage Bot", platforms: ["github"] },
     ]);
   });
 });

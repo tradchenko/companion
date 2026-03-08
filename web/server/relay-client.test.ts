@@ -172,7 +172,7 @@ describe("RelayClient", () => {
     it("forwards a webhook request to the ChatBot handler and sends back the response", async () => {
       const chatBot = createMockChatBot();
       chatBot.webhooks = {
-        linear: vi.fn(async () => new Response("OK", { status: 200 })),
+        github: vi.fn(async () => new Response("OK", { status: 200 })),
       };
 
       const client = new RelayClient("https://relay.example.com", "s", chatBot as any);
@@ -183,7 +183,7 @@ describe("RelayClient", () => {
       capturedWs!.simulateMessage(JSON.stringify({
         type: "webhook_request",
         requestId: "req-1",
-        platform: "linear",
+        platform: "github",
         method: "POST",
         headers: { "content-type": "application/json" },
         body: '{"event":"test"}',
@@ -193,7 +193,7 @@ describe("RelayClient", () => {
       await vi.advanceTimersByTimeAsync(10);
 
       // The chatBot webhook handler should have been called
-      expect(chatBot.webhooks.linear).toHaveBeenCalledTimes(1);
+      expect(chatBot.webhooks.github).toHaveBeenCalledTimes(1);
 
       // The relay client should have sent a webhook_response back
       expect(capturedWs!.sent).toHaveLength(1);
@@ -232,7 +232,7 @@ describe("RelayClient", () => {
     it("returns 500 when the webhook handler throws", async () => {
       const chatBot = createMockChatBot();
       chatBot.webhooks = {
-        linear: vi.fn(async () => { throw new Error("boom"); }),
+        github: vi.fn(async () => { throw new Error("boom"); }),
       };
 
       const client = new RelayClient("https://relay.example.com", "s", chatBot as any);
@@ -242,7 +242,7 @@ describe("RelayClient", () => {
       capturedWs!.simulateMessage(JSON.stringify({
         type: "webhook_request",
         requestId: "req-3",
-        platform: "linear",
+        platform: "github",
         method: "POST",
         headers: {},
         body: "test",
