@@ -1,17 +1,18 @@
 // ─── Chat SDK Integration Layer ─────────────────────────────────────────────
 // Bridges Vercel Chat SDK with Companion's agent execution system.
-// External platforms (Linear, GitHub, Slack, etc.) send webhooks to the Chat SDK,
+// External platforms (GitHub, Slack, Discord) send webhooks to the Chat SDK,
 // which routes them to registered handlers. These handlers create/resume agent
 // sessions and relay responses back to the platform.
 //
+// Note: Linear is handled via the dedicated Agent Interaction SDK instead
+// (see linear-agent-bridge.ts). This Chat SDK layer is for other platforms.
+//
 // Architecture: Per-agent Chat SDK instances. Each agent with chat platform
 // credentials gets its own Chat SDK instance with isolated webhook handlers.
-// A legacy global instance is maintained for backward compatibility with
-// env-var based setup (deprecated).
 
 import { Chat, ConsoleLogger } from "chat";
 import type { Adapter, Thread, Message as ChatMessage } from "chat";
-import { createLinearAdapter } from "@chat-adapter/linear";
+import { createGithubAdapter } from "@chat-adapter/github";
 import { createMemoryState } from "@chat-adapter/state-memory";
 import type { AgentExecutor } from "./agent-executor.js";
 import type { WsBridge } from "./ws-bridge.js";
@@ -57,25 +58,14 @@ function extractTextFromAssistant(msg: BrowserIncomingMessage): string {
 function createAdapterForBinding(binding: ChatPlatformBinding): Adapter | null {
   if (!binding.credentials) return null;
 
-  if (binding.adapter === "linear") {
-    const creds = binding.credentials as { apiKey?: string; clientId?: string; clientSecret?: string; accessToken?: string; webhookSecret: string; userName?: string };
-    // Need at least one auth method + webhook secret
-    const hasAuth = creds.apiKey || (creds.clientId && creds.clientSecret) || creds.accessToken;
+  if (binding.adapter === "github") {
+    const creds = binding.credentials as { token?: string; appId?: string; privateKey?: string; installationId?: string; webhookSecret: string; userName?: string };
+    const hasAuth = creds.token || (creds.appId && creds.privateKey);
     if (!hasAuth || !creds.webhookSecret) return null;
-
-    const adapterConfig: Record<string, unknown> = {
-      webhookSecret: creds.webhookSecret,
-      userName: creds.userName || "companion",
-    };
-    if (creds.apiKey) adapterConfig.apiKey = creds.apiKey;
-    if (creds.clientId) adapterConfig.clientId = creds.clientId;
-    if (creds.clientSecret) adapterConfig.clientSecret = creds.clientSecret;
-    if (creds.accessToken) adapterConfig.accessToken = creds.accessToken;
-
-    return createLinearAdapter(adapterConfig as Parameters<typeof createLinearAdapter>[0]);
+    return createGithubAdapter(creds as Parameters<typeof createGithubAdapter>[0]);
   }
 
-  // GitHub and other adapters: not yet implemented at runtime
+  // Slack, Discord: not yet implemented at runtime
   // Schema is forward-compatible; runtime support added when adapter packages are available
   return null;
 }
@@ -105,30 +95,8 @@ export class ChatBot {
   initialize(): boolean {
     let anyInitialized = false;
 
-    // ── Legacy global instance from env vars (deprecated) ──
-    if (process.env.LINEAR_API_KEY && process.env.LINEAR_WEBHOOK_SECRET) {
-      const adapters: Record<string, Adapter> = {};
-      adapters.linear = createLinearAdapter({
-        apiKey: process.env.LINEAR_API_KEY,
-        webhookSecret: process.env.LINEAR_WEBHOOK_SECRET,
-        userName: process.env.LINEAR_BOT_USERNAME || "companion",
-      });
-
-      this.legacyChat = new Chat<Record<string, Adapter>, CompanionThreadState>({
-        userName: process.env.LINEAR_BOT_USERNAME || "companion",
-        adapters,
-        state: createMemoryState(),
-        logger: new ConsoleLogger("warn"),
-      });
-
-      this.registerLegacyHandlers();
-      anyInitialized = true;
-
-      console.warn(
-        "[chat-bot] Using deprecated global LINEAR_API_KEY/LINEAR_WEBHOOK_SECRET env vars. " +
-        "Migrate to per-agent credentials in the agent editor.",
-      );
-    }
+    // Legacy global Linear env var setup removed — use the Linear Agent Interaction SDK instead.
+    // If LINEAR_API_KEY env var is set, it's only used for issue context injection (settings-manager).
 
     // ── Per-agent instances from stored credentials ──
     const agents = agentStore.listAgents();
@@ -454,7 +422,7 @@ export class ChatBot {
   private getAdapterNameFromThread(thread: Thread<CompanionThreadState>): ChatAdapterName {
     const threadId = (thread as unknown as { id?: string }).id || "";
     const parts = threadId.split(":");
-    return (parts[0] || "linear") as ChatAdapterName;
+    return (parts[0] || "github") as ChatAdapterName;
   }
 
   /**

@@ -1256,7 +1256,7 @@ describe("AgentsPage", () => {
         chat: {
           enabled: true,
           platforms: [
-            { adapter: "linear", autoSubscribe: true },
+            { adapter: "github", autoSubscribe: true },
             { adapter: "github", autoSubscribe: true },
           ],
         },
@@ -1767,8 +1767,8 @@ describe("AgentsPage", () => {
     fireEvent.click(screen.getByText("Chat"));
     fireEvent.click(screen.getByText("Add platform"));
 
-    // Change adapter from Linear (default) to Slack
-    const adapterSelect = screen.getByDisplayValue("Linear");
+    // Change adapter from GitHub (default) to Slack
+    const adapterSelect = screen.getByDisplayValue("GitHub");
     fireEvent.change(adapterSelect, { target: { value: "slack" } });
 
     // Type a mention pattern
@@ -1820,7 +1820,7 @@ describe("AgentsPage", () => {
     const payload = mockApi.createAgent.mock.calls[0][0];
     expect(payload.triggers.chat.enabled).toBe(true);
     expect(payload.triggers.chat.platforms).toHaveLength(1);
-    expect(payload.triggers.chat.platforms[0].adapter).toBe("linear");
+    expect(payload.triggers.chat.platforms[0].adapter).toBe("github");
     expect(payload.triggers.chat.platforms[0].autoSubscribe).toBe(true);
   });
 
@@ -2368,34 +2368,9 @@ describe("AgentsPage", () => {
 
   // ── Chat Credential UI ──────────────────────────────────────────────────
 
-  it("chat credential inputs render for Linear adapter with correct aria-labels", async () => {
-    // When a Linear platform is added in the chat trigger section, the
-    // credential fields (API Key, OAuth Client ID/Secret, Webhook Secret,
-    // Bot Username) should render with accessible labels.
-    mockApi.listAgents.mockResolvedValue([]);
-    render(<AgentsPage route={defaultRoute} />);
-    await waitFor(() => {
-      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("+ New Agent"));
-    fireEvent.click(screen.getByText("Chat"));
-    fireEvent.click(screen.getByText("Add platform"));
-
-    // Linear credential section should be visible
-    expect(screen.getByText("Linear Credentials")).toBeInTheDocument();
-
-    // All credential inputs should have accessible labels
-    expect(screen.getByLabelText("Linear API Key")).toBeInTheDocument();
-    expect(screen.getByLabelText("Linear OAuth Client ID")).toBeInTheDocument();
-    expect(screen.getByLabelText("Linear OAuth Client Secret")).toBeInTheDocument();
-    expect(screen.getByLabelText("Linear Webhook Secret")).toBeInTheDocument();
-    expect(screen.getByLabelText("Linear Bot Username")).toBeInTheDocument();
-  });
-
   it("chat credential inputs render for GitHub adapter with correct aria-labels", async () => {
-    // When the adapter is switched to GitHub, the GitHub-specific credential
-    // fields should render instead of Linear fields.
+    // When a GitHub platform is added (the default), the GitHub-specific
+    // credential fields should render with accessible labels.
     mockApi.listAgents.mockResolvedValue([]);
     render(<AgentsPage route={defaultRoute} />);
     await waitFor(() => {
@@ -2406,13 +2381,8 @@ describe("AgentsPage", () => {
     fireEvent.click(screen.getByText("Chat"));
     fireEvent.click(screen.getByText("Add platform"));
 
-    // Switch adapter to GitHub
-    const select = screen.getByDisplayValue("Linear");
-    fireEvent.change(select, { target: { value: "github" } });
-
-    // GitHub credential section should be visible
+    // GitHub credential section should be visible (GitHub is the default adapter)
     expect(screen.getByText("GitHub Credentials")).toBeInTheDocument();
-    expect(screen.queryByText("Linear Credentials")).not.toBeInTheDocument();
 
     // All GitHub credential inputs should have accessible labels
     expect(screen.getByLabelText("GitHub Personal Access Token")).toBeInTheDocument();
@@ -2435,11 +2405,11 @@ describe("AgentsPage", () => {
     fireEvent.click(screen.getByText("Chat"));
     fireEvent.click(screen.getByText("Add platform"));
 
-    // Switch to Slack
-    const select = screen.getByDisplayValue("Linear");
+    // Switch to Slack (default is GitHub)
+    const select = screen.getByDisplayValue("GitHub");
     fireEvent.change(select, { target: { value: "slack" } });
     expect(screen.getByText("Slack adapter coming soon.")).toBeInTheDocument();
-    expect(screen.queryByText("Linear Credentials")).not.toBeInTheDocument();
+    expect(screen.queryByText("GitHub Credentials")).not.toBeInTheDocument();
   });
 
   it("editing agent with existing credentials populates credential fields", async () => {
@@ -2456,10 +2426,10 @@ describe("AgentsPage", () => {
           enabled: true,
           platforms: [
             {
-              adapter: "linear",
+              adapter: "github",
               autoSubscribe: true,
               credentials: {
-                apiKey: "lin_****",
+                token: "ghp_****",
                 webhookSecret: "whs_abc123",
                 userName: "my-bot",
               },
@@ -2474,23 +2444,23 @@ describe("AgentsPage", () => {
     await screen.findByText("Credentialed Agent");
     fireEvent.click(screen.getByTitle("Edit"));
 
-    // Masked API key should show placeholder text and the field should have
+    // Masked token should show placeholder text and the field should have
     // the masked value loaded
-    const apiKeyInput = screen.getByLabelText("Linear API Key") as HTMLInputElement;
-    expect(apiKeyInput.value).toBe("lin_****");
+    const tokenInput = screen.getByLabelText("GitHub Personal Access Token") as HTMLInputElement;
+    expect(tokenInput.value).toBe("ghp_****");
 
     // Webhook secret should be editable so users can paste their platform's signing secret
-    const webhookInput = screen.getByLabelText("Linear Webhook Secret") as HTMLInputElement;
+    const webhookInput = screen.getByLabelText("GitHub Webhook Secret") as HTMLInputElement;
     expect(webhookInput.value).toBe("whs_abc123");
     expect(webhookInput.readOnly).toBeFalsy();
 
     // Bot username should be pre-filled
-    const userInput = screen.getByLabelText("Linear Bot Username") as HTMLInputElement;
+    const userInput = screen.getByLabelText("GitHub Bot Username") as HTMLInputElement;
     expect(userInput.value).toBe("my-bot");
   });
 
-  it("webhook secret field is editable and updates form state for Linear", async () => {
-    // Linear generates its own signing secret, so users need to paste it
+  it("webhook secret field is editable and updates form state for GitHub", async () => {
+    // GitHub generates its own signing secret, so users need to paste it
     // into Companion. The field must be editable, not read-only.
     const agent = makeAgent({
       id: "ws-edit",
@@ -2502,10 +2472,10 @@ describe("AgentsPage", () => {
           enabled: true,
           platforms: [
             {
-              adapter: "linear",
+              adapter: "github",
               autoSubscribe: true,
               credentials: {
-                apiKey: "lin_****",
+                token: "ghp_****",
                 webhookSecret: "old_secret",
                 userName: "bot",
               },
@@ -2520,12 +2490,12 @@ describe("AgentsPage", () => {
     await screen.findByText("WS Edit Agent");
     fireEvent.click(screen.getByTitle("Edit"));
 
-    const webhookInput = screen.getByLabelText("Linear Webhook Secret") as HTMLInputElement;
+    const webhookInput = screen.getByLabelText("GitHub Webhook Secret") as HTMLInputElement;
     expect(webhookInput.value).toBe("old_secret");
 
-    // Simulate pasting a new signing secret from Linear
-    fireEvent.change(webhookInput, { target: { value: "new_linear_signing_secret" } });
-    expect(webhookInput.value).toBe("new_linear_signing_secret");
+    // Simulate pasting a new signing secret from GitHub
+    fireEvent.change(webhookInput, { target: { value: "new_gh_signing_secret" } });
+    expect(webhookInput.value).toBe("new_gh_signing_secret");
   });
 
   it("webhook secret field is editable for GitHub platform", async () => {
@@ -2580,10 +2550,10 @@ describe("AgentsPage", () => {
           enabled: true,
           platforms: [
             {
-              adapter: "linear",
+              adapter: "github",
               autoSubscribe: true,
               credentials: {
-                apiKey: "lin_****",
+                token: "ghp_****",
                 webhookSecret: "whs_****",
                 userName: "bot",
               },
@@ -2598,7 +2568,7 @@ describe("AgentsPage", () => {
     await screen.findByText("Masked WS Agent");
     fireEvent.click(screen.getByTitle("Edit"));
 
-    const webhookInput = screen.getByLabelText("Linear Webhook Secret") as HTMLInputElement;
+    const webhookInput = screen.getByLabelText("GitHub Webhook Secret") as HTMLInputElement;
     // Value should be empty so the placeholder is visible
     expect(webhookInput.value).toBe("");
     expect(webhookInput.placeholder).toContain("Configured");
@@ -2617,10 +2587,10 @@ describe("AgentsPage", () => {
           enabled: true,
           platforms: [
             {
-              adapter: "linear",
+              adapter: "github",
               autoSubscribe: true,
               credentials: {
-                apiKey: "lin_****",
+                token: "ghp_****",
                 webhookSecret: "whs_test",
               },
             },
@@ -2636,7 +2606,7 @@ describe("AgentsPage", () => {
 
     // Webhook URL should be visible since agent is saved and has credentials
     expect(screen.getByText("Webhook URL:")).toBeInTheDocument();
-    expect(screen.getByText(/\/api\/agents\/url-agent\/chat\/webhooks\/linear/)).toBeInTheDocument();
+    expect(screen.getByText(/\/api\/agents\/url-agent\/chat\/webhooks\/github/)).toBeInTheDocument();
   });
 
   it("agent card shows chat webhook URL copy buttons for platforms with credentials", async () => {
@@ -2652,10 +2622,10 @@ describe("AgentsPage", () => {
           enabled: true,
           platforms: [
             {
-              adapter: "linear",
+              adapter: "github",
               autoSubscribe: true,
               credentials: {
-                apiKey: "lin_****",
+                token: "ghp_****",
                 webhookSecret: "whs_test",
               },
             },
@@ -2668,7 +2638,7 @@ describe("AgentsPage", () => {
 
     await screen.findByText("Card Cred Agent");
     // The card should have a platform-specific URL copy button
-    expect(screen.getByTitle("Copy linear chat webhook URL")).toBeInTheDocument();
+    expect(screen.getByTitle("Copy github chat webhook URL")).toBeInTheDocument();
   });
 
   it("passes axe accessibility checks in editor with chat credentials visible", async () => {
@@ -2686,7 +2656,7 @@ describe("AgentsPage", () => {
     fireEvent.click(screen.getByText("Add platform"));
 
     // Verify credential section is visible before running axe
-    expect(screen.getByText("Linear Credentials")).toBeInTheDocument();
+    expect(screen.getByText("GitHub Credentials")).toBeInTheDocument();
 
     const axeRules = {
       rules: {
@@ -2773,104 +2743,7 @@ describe("AgentsPage", () => {
     expect(copiedUrl).toContain("/api/agents/fallback-agent/webhook/fb-secret");
   });
 
-  // ── Linear Chat Setup Guide Tests ─────────────────────────────────────────
-
-  it("Linear setup guide renders when adding a Linear chat platform", async () => {
-    // When a Linear platform is added in the chat trigger section, a
-    // collapsible "Linear Chat Setup Guide" should appear with step-by-step
-    // instructions for configuring the Linear integration.
-    mockApi.listAgents.mockResolvedValue([]);
-    render(<AgentsPage route={defaultRoute} />);
-    await waitFor(() => {
-      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("+ New Agent"));
-    fireEvent.click(screen.getByText("Chat"));
-    fireEvent.click(screen.getByText("Add platform"));
-
-    // The Linear Chat Setup Guide should be visible
-    expect(screen.getByText("Linear Chat Setup Guide")).toBeInTheDocument();
-  });
-
-  it("HTTPS warning shown when webhook URL does not start with https://", async () => {
-    // When editing a saved Linear agent and the generated webhook URL
-    // does not start with "https://", an amber warning about HTTPS
-    // requirements should appear below the URL.
-    mockPublicUrl = "http://not-secure.example.com";
-    const agent = makeAgent({
-      id: "https-warn",
-      name: "HTTPS Warn Agent",
-      triggers: {
-        webhook: { enabled: false, secret: "" },
-        schedule: { enabled: false, expression: "0 8 * * *", recurring: true },
-        chat: {
-          enabled: true,
-          platforms: [
-            {
-              adapter: "linear",
-              autoSubscribe: true,
-              credentials: {
-                apiKey: "lin_test",
-                webhookSecret: "whs_test",
-              },
-            },
-          ],
-        },
-      },
-    });
-    mockApi.listAgents.mockResolvedValue([agent]);
-    render(<AgentsPage route={defaultRoute} />);
-
-    await screen.findByText("HTTPS Warn Agent");
-    fireEvent.click(screen.getByTitle("Edit"));
-
-    // The HTTPS warning should be visible because the URL starts with http://
-    await waitFor(() => {
-      expect(screen.getByText(/Linear requires HTTPS/)).toBeInTheDocument();
-    });
-  });
-
-  it("public URL warning shown inside Linear setup guide when publicUrl is empty", async () => {
-    // When no publicUrl is configured (empty string), the Linear Chat Setup
-    // Guide should show a warning that the webhook URL uses the browser
-    // address which may not be reachable from Linear.
-    mockPublicUrl = "";
-    mockApi.listAgents.mockResolvedValue([]);
-    render(<AgentsPage route={defaultRoute} />);
-    await waitFor(() => {
-      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("+ New Agent"));
-    fireEvent.click(screen.getByText("Chat"));
-    fireEvent.click(screen.getByText("Add platform"));
-
-    // The setup guide should be visible
-    expect(screen.getByText("Linear Chat Setup Guide")).toBeInTheDocument();
-
-    // The public URL warning within the setup guide should be visible
-    expect(screen.getByText(/No public URL configured/)).toBeInTheDocument();
-  });
-
-  it("public URL warning hidden inside Linear setup guide when publicUrl is set", async () => {
-    // When a publicUrl IS configured, the "No public URL configured" warning
-    // should NOT appear inside the Linear Chat Setup Guide.
-    mockPublicUrl = "https://public.example.com";
-    mockApi.listAgents.mockResolvedValue([]);
-    render(<AgentsPage route={defaultRoute} />);
-    await waitFor(() => {
-      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("+ New Agent"));
-    fireEvent.click(screen.getByText("Chat"));
-    fireEvent.click(screen.getByText("Add platform"));
-
-    // The setup guide should be visible
-    expect(screen.getByText("Linear Chat Setup Guide")).toBeInTheDocument();
-
-    // The public URL warning should NOT be present
-    expect(screen.queryByText(/No public URL configured/)).not.toBeInTheDocument();
-  });
+  // Linear Chat Setup Guide and HTTPS/public URL warnings were removed
+  // when the old Chat SDK Linear interface was replaced by the dedicated
+  // Linear Agent Interaction SDK (see linear-agent-bridge.ts).
 });

@@ -565,21 +565,21 @@ describe("sanitizeAgentForResponse", () => {
     expect(sanitized).toEqual(agent);
   });
 
-  it("masks apiKey and webhookSecret, preserves userName", () => {
-    // Linear credentials with apiKey — apiKey and webhookSecret should be
+  it("masks token and webhookSecret, preserves userName", () => {
+    // GitHub credentials with token — token and webhookSecret should be
     // masked, userName should remain untouched
     const agent = agentStore.createAgent(
       makeAgentInput({
-        name: "Linear Mask Agent",
+        name: "Github Token Mask Agent",
         triggers: {
           chat: {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "github" as const,
                 autoSubscribe: true,
                 credentials: {
-                  apiKey: "lin_api_1234567890abcdef",
+                  token: "lin_api_1234567890abcdef",
                   webhookSecret: "whsec_abc123",
                   userName: "TestBot",
                 },
@@ -593,15 +593,15 @@ describe("sanitizeAgentForResponse", () => {
     const sanitized = agentStore.sanitizeAgentForResponse(agent);
     const creds = sanitized.triggers!.chat!.platforms[0].credentials as Record<string, unknown>;
 
-    // apiKey should be masked: first 4 chars + "****"
-    expect(creds.apiKey).toBe("lin_****");
+    // token should be masked: first 4 chars + "****"
+    expect(creds.token).toBe("lin_****");
     // webhookSecret is a secret field, should be masked
     expect(creds.webhookSecret).toBe("whse****");
     // userName is not a secret field
     expect(creds.userName).toBe("TestBot");
   });
 
-  it("masks token, clientSecret, privateKey, and accessToken fields", () => {
+  it("masks token, privateKey, and webhookSecret fields", () => {
     // GitHub credentials with multiple secret fields — all should be masked
     const agent = agentStore.createAgent(
       makeAgentInput({
@@ -639,22 +639,22 @@ describe("sanitizeAgentForResponse", () => {
     expect(creds.userName).toBe("my-bot");
   });
 
-  it("masks accessToken and clientSecret for Linear OAuth credentials", () => {
-    // Linear with OAuth-style credentials: clientSecret + accessToken
+  it("masks privateKey and token for GitHub App credentials", () => {
+    // GitHub with App-style credentials: appId + privateKey + token
     const agent = agentStore.createAgent(
       makeAgentInput({
-        name: "Linear OAuth Agent",
+        name: "Github App Mask Agent",
         triggers: {
           chat: {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "github" as const,
                 autoSubscribe: true,
                 credentials: {
-                  clientId: "client-id-public",
-                  clientSecret: "super-secret-client-val",
-                  accessToken: "oauth-access-token-12345",
+                  appId: "app-id-public",
+                  privateKey: "super-secret-private-key",
+                  token: "oauth-access-token-12345",
                   webhookSecret: "wh-secret-val",
                 },
               },
@@ -667,12 +667,12 @@ describe("sanitizeAgentForResponse", () => {
     const sanitized = agentStore.sanitizeAgentForResponse(agent);
     const creds = sanitized.triggers!.chat!.platforms[0].credentials as Record<string, unknown>;
 
-    // clientSecret → masked
-    expect(creds.clientSecret).toBe("supe****");
-    // accessToken → masked
-    expect(creds.accessToken).toBe("oaut****");
-    // clientId is NOT a secret field — preserved as-is
-    expect(creds.clientId).toBe("client-id-public");
+    // privateKey → masked
+    expect(creds.privateKey).toBe("supe****");
+    // token → masked
+    expect(creds.token).toBe("oaut****");
+    // appId is NOT a secret field — preserved as-is
+    expect(creds.appId).toBe("app-id-public");
   });
 
   it("handles short secrets (4 chars or fewer) by replacing entirely with ****", () => {
@@ -686,10 +686,10 @@ describe("sanitizeAgentForResponse", () => {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "github" as const,
                 autoSubscribe: false,
                 credentials: {
-                  apiKey: "ab",
+                  token: "ab",
                   webhookSecret: "wh123",
                 },
               },
@@ -703,7 +703,7 @@ describe("sanitizeAgentForResponse", () => {
     const creds = sanitized.triggers!.chat!.platforms[0].credentials as Record<string, unknown>;
 
     // "ab" is only 2 chars — entirely masked
-    expect(creds.apiKey).toBe("****");
+    expect(creds.token).toBe("****");
   });
 
   it("handles platforms without credentials (no-op for that binding)", () => {
@@ -742,19 +742,19 @@ describe("sanitizeAgentForResponse", () => {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "github" as const,
                 autoSubscribe: true,
                 credentials: {
-                  apiKey: "lin_key_12345",
-                  webhookSecret: "wh-linear",
+                  token: "lin_key_12345",
+                  webhookSecret: "wh-github1",
                 },
               },
               {
-                adapter: "github" as const,
+                adapter: "slack" as const,
                 autoSubscribe: false,
                 credentials: {
                   token: "ghp_token_abcde",
-                  webhookSecret: "wh-github",
+                  webhookSecret: "wh-slack1",
                 },
               },
             ],
@@ -764,13 +764,13 @@ describe("sanitizeAgentForResponse", () => {
     );
 
     const sanitized = agentStore.sanitizeAgentForResponse(agent);
-    const linearCreds = sanitized.triggers!.chat!.platforms[0].credentials as Record<string, unknown>;
-    const githubCreds = sanitized.triggers!.chat!.platforms[1].credentials as Record<string, unknown>;
+    const githubCreds = sanitized.triggers!.chat!.platforms[0].credentials as Record<string, unknown>;
+    const slackCreds = sanitized.triggers!.chat!.platforms[1].credentials as Record<string, unknown>;
 
-    expect(linearCreds.apiKey).toBe("lin_****");
-    expect(linearCreds.webhookSecret).toBe("wh-l****");
-    expect(githubCreds.token).toBe("ghp_****");
+    expect(githubCreds.token).toBe("lin_****");
     expect(githubCreds.webhookSecret).toBe("wh-g****");
+    expect(slackCreds.token).toBe("ghp_****");
+    expect(slackCreds.webhookSecret).toBe("wh-s****");
   });
 });
 
@@ -810,20 +810,20 @@ describe("stripChatCredentials", () => {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "github" as const,
                 autoSubscribe: true,
                 credentials: {
-                  apiKey: "secret-linear-key",
-                  webhookSecret: "wh-linear-secret",
-                  userName: "LinBot",
+                  token: "secret-github-key",
+                  webhookSecret: "wh-github-secret",
+                  userName: "GHBot",
                 },
               },
               {
-                adapter: "github" as const,
+                adapter: "slack" as const,
                 autoSubscribe: false,
                 credentials: {
-                  token: "ghp_secret_token",
-                  webhookSecret: "wh-github-secret",
+                  token: "xoxb_secret_token",
+                  webhookSecret: "wh-slack-secret",
                 },
               },
             ],
@@ -843,9 +843,9 @@ describe("stripChatCredentials", () => {
     }
 
     // Non-credential fields should be preserved
-    expect(stripped.triggers!.chat!.platforms[0].adapter).toBe("linear");
+    expect(stripped.triggers!.chat!.platforms[0].adapter).toBe("github");
     expect(stripped.triggers!.chat!.platforms[0].autoSubscribe).toBe(true);
-    expect(stripped.triggers!.chat!.platforms[1].adapter).toBe("github");
+    expect(stripped.triggers!.chat!.platforms[1].adapter).toBe("slack");
     expect(stripped.triggers!.chat!.platforms[1].autoSubscribe).toBe(false);
   });
 
@@ -897,10 +897,10 @@ describe("ensureChatWebhookSecrets", () => {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "github" as const,
                 autoSubscribe: true,
                 credentials: {
-                  apiKey: "lin_api_key_value",
+                  token: "ghp_api_key_value",
                   // webhookSecret intentionally omitted
                 },
               },
@@ -955,10 +955,10 @@ describe("ensureChatWebhookSecrets", () => {
           enabled: true,
           platforms: [
             {
-              adapter: "linear" as const,
+              adapter: "github" as const,
               autoSubscribe: true,
               credentials: {
-                apiKey: "lin_key_for_update",
+                token: "ghp_key_for_update",
                 // webhookSecret intentionally omitted — should be auto-generated
               },
             },
@@ -999,7 +999,7 @@ describe("ensureChatWebhookSecrets", () => {
 
   it("deep-merges credentials on update to preserve omitted fields", () => {
     // When updating an agent, if the frontend omits credential fields (e.g.
-    // masked apiKey was not re-sent), the server should preserve existing
+    // masked token was not re-sent), the server should preserve existing
     // credential values rather than dropping them.
     const agent = agentStore.createAgent(
       makeAgentInput({
@@ -1009,10 +1009,10 @@ describe("ensureChatWebhookSecrets", () => {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "github" as const,
                 autoSubscribe: true,
                 credentials: {
-                  apiKey: "lin_original_secret_key",
+                  token: "ghp_original_secret_key",
                   webhookSecret: "whs_original_secret",
                   userName: "OriginalBot",
                 },
@@ -1023,7 +1023,7 @@ describe("ensureChatWebhookSecrets", () => {
       }),
     );
 
-    // Update with only userName changed — apiKey is omitted (simulating
+    // Update with only userName changed — token is omitted (simulating
     // the frontend filtering out masked values)
     const updated = agentStore.updateAgent("deep-merge-agent", {
       triggers: {
@@ -1031,7 +1031,7 @@ describe("ensureChatWebhookSecrets", () => {
           enabled: true,
           platforms: [
             {
-              adapter: "linear" as const,
+              adapter: "github" as const,
               autoSubscribe: true,
               credentials: {
                 userName: "UpdatedBot",
@@ -1043,8 +1043,8 @@ describe("ensureChatWebhookSecrets", () => {
     });
 
     const creds = updated!.triggers!.chat!.platforms[0].credentials as Record<string, unknown>;
-    // apiKey should be preserved from the original agent
-    expect(creds.apiKey).toBe("lin_original_secret_key");
+    // token should be preserved from the original agent
+    expect(creds.token).toBe("ghp_original_secret_key");
     // webhookSecret should be preserved from the original agent
     expect(creds.webhookSecret).toBe("whs_original_secret");
     // userName should be updated
@@ -1063,11 +1063,11 @@ describe("ensureChatWebhookSecrets", () => {
             enabled: true,
             platforms: [
               {
-                adapter: "linear" as const,
+                adapter: "slack" as const,
                 autoSubscribe: true,
                 credentials: {
-                  apiKey: "lin_secret",
-                  webhookSecret: "whs_linear",
+                  token: "xoxb_secret",
+                  webhookSecret: "whs_slack",
                 },
               },
               {
@@ -1084,7 +1084,7 @@ describe("ensureChatWebhookSecrets", () => {
       }),
     );
 
-    // Update: remove linear, keep only github (now at index 0)
+    // Update: remove slack, keep only github (now at index 0)
     const updated = agentStore.updateAgent("adapter-match-agent", {
       triggers: {
         chat: {
@@ -1103,11 +1103,11 @@ describe("ensureChatWebhookSecrets", () => {
     });
 
     const creds = updated!.triggers!.chat!.platforms[0].credentials as Record<string, unknown>;
-    // Should match github's existing credentials (not linear's)
+    // Should match github's existing credentials (not slack's)
     expect(creds.token).toBe("ghp_secret");
     expect(creds.webhookSecret).toBe("whs_github");
     expect(creds.userName).toBe("my-bot");
-    // Should NOT have linear's apiKey
-    expect(creds.apiKey).toBeUndefined();
+    // Should NOT have slack's token (which was "xoxb_secret")
+    expect(creds.appId).toBeUndefined();
   });
 });

@@ -593,16 +593,11 @@ export interface AgentInfo {
     chat?: {
       enabled: boolean;
       platforms: Array<{
-        adapter: "linear" | "github" | "slack" | "discord";
+        adapter: "github" | "slack" | "discord";
         mentionPattern?: string;
         autoSubscribe: boolean;
         /** Per-binding credentials (masked in API responses) */
         credentials?: {
-          // Linear
-          apiKey?: string;
-          clientId?: string;
-          clientSecret?: string;
-          accessToken?: string;
           // GitHub
           token?: string;
           appId?: string;

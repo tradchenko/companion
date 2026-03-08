@@ -1,23 +1,7 @@
 // ─── Agent Types ─────────────────────────────────────────────────────────────
 
-/** Supported Chat SDK adapter names */
-export type ChatAdapterName = "linear" | "github" | "slack" | "discord";
-
-/** Credentials for the Linear Chat SDK adapter */
-export interface LinearChatCredentials {
-  /** Linear API key (personal) — alternative to OAuth */
-  apiKey?: string;
-  /** OAuth application client ID */
-  clientId?: string;
-  /** OAuth application client secret */
-  clientSecret?: string;
-  /** Pre-obtained OAuth access token */
-  accessToken?: string;
-  /** Webhook signing secret (required) */
-  webhookSecret: string;
-  /** Bot display name on Linear */
-  userName?: string;
-}
+/** Supported Chat SDK adapter names (Linear removed — use Linear Agent SDK instead) */
+export type ChatAdapterName = "github" | "slack" | "discord";
 
 /** Credentials for the GitHub Chat SDK adapter (forward-compatible) */
 export interface GithubChatCredentials {
@@ -39,7 +23,6 @@ export interface GithubChatCredentials {
 
 /** Per-platform credential types keyed by adapter name */
 export interface ChatPlatformCredentials {
-  linear: LinearChatCredentials;
   github: GithubChatCredentials;
   slack: Record<string, string>;
   discord: Record<string, string>;
