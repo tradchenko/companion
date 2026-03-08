@@ -271,6 +271,24 @@ describe("LinearAgentBridge", () => {
         expect.objectContaining({ triggerType: "linear" }),
       );
     });
+
+    it("ignores prompted events with empty or whitespace-only messages", async () => {
+      // Empty agentActivity.body should be silently skipped — no injection, no new session
+      vi.mocked(agentStore.listAgents).mockReturnValue([testAgent] as ReturnType<typeof agentStore.listAgents>);
+      vi.mocked(executor.executeAgent).mockResolvedValue({ sessionId: "comp-sess-1" } as never);
+      await bridge.handleEvent(makeCreatedEvent());
+      vi.clearAllMocks();
+
+      // Send a follow-up with empty body
+      await bridge.handleEvent(makePromptedEvent("linear-session-1", ""));
+      expect(wsBridge.injectUserMessage).not.toHaveBeenCalled();
+      expect(executor.executeAgent).not.toHaveBeenCalled();
+
+      // Send a follow-up with whitespace-only body
+      await bridge.handleEvent(makePromptedEvent("linear-session-1", "   "));
+      expect(wsBridge.injectUserMessage).not.toHaveBeenCalled();
+      expect(executor.executeAgent).not.toHaveBeenCalled();
+    });
   });
 
   describe("relay — assistant message callbacks", () => {
@@ -331,6 +349,33 @@ describe("LinearAgentBridge", () => {
           type: "action",
           action: "Edit",
         }),
+      );
+    });
+
+    it("relays all tool_use blocks when assistant calls multiple tools", async () => {
+      const { assistantCb } = await createSessionAndCaptureCallbacks();
+
+      // Simulate an assistant message with multiple parallel tool calls
+      assistantCb({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", name: "Read", input: { file: "a.ts" } },
+            { type: "tool_use", name: "Read", input: { file: "b.ts" } },
+            { type: "tool_use", name: "Edit", input: { file: "c.ts" } },
+          ],
+        },
+      } as never);
+
+      // All three tool_use blocks should be posted as action activities
+      expect(linearAgent.postActivity).toHaveBeenCalledTimes(3);
+      expect(linearAgent.postActivity).toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "action", action: "Read" }),
+      );
+      expect(linearAgent.postActivity).toHaveBeenCalledWith(
+        "linear-session-1",
+        expect.objectContaining({ type: "action", action: "Edit" }),
       );
     });
 

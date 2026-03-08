@@ -36,17 +36,19 @@ function extractTextFromAssistant(msg: BrowserIncomingMessage): string {
     .join("\n");
 }
 
-/** Extract tool use info from assistant message content blocks */
-function extractToolUse(msg: BrowserIncomingMessage): { name: string; input: string } | null {
+/** Extract all tool use blocks from assistant message content */
+function extractToolUses(msg: BrowserIncomingMessage): Array<{ name: string; input: string }> {
   const content = getAssistantContent(msg);
-  if (!content) return null;
-  const toolBlock = content.find((b): b is { type: string; name: string; input?: Record<string, unknown> } =>
-    typeof b === "object" && b !== null
-    && (b as Record<string, unknown>).type === "tool_use"
-    && typeof (b as Record<string, unknown>).name === "string");
-  if (!toolBlock) return null;
-  const inputStr = toolBlock.input ? JSON.stringify(toolBlock.input).slice(0, 200) : "";
-  return { name: toolBlock.name, input: inputStr };
+  if (!content) return [];
+  return content
+    .filter((b): b is { type: string; name: string; input?: Record<string, unknown> } =>
+      typeof b === "object" && b !== null
+      && (b as Record<string, unknown>).type === "tool_use"
+      && typeof (b as Record<string, unknown>).name === "string")
+    .map((toolBlock) => ({
+      name: toolBlock.name,
+      input: toolBlock.input ? JSON.stringify(toolBlock.input).slice(0, 200) : "",
+    }));
 }
 
 export class LinearAgentBridge {
@@ -150,7 +152,13 @@ export class LinearAgentBridge {
   /** Handle a follow-up prompt in an existing agent session. */
   private async handlePrompted(payload: AgentSessionEventPayload): Promise<void> {
     const linearSessionId = payload.data.id;
-    const message = payload.agentActivity?.body || "";
+    const message = (payload.agentActivity?.body || "").trim();
+
+    // Skip empty follow-ups — no point injecting a blank message
+    if (!message) {
+      console.log(`[linear-agent-bridge] Ignoring empty follow-up for ${linearSessionId}`);
+      return;
+    }
 
     const companionSessionId = this.sessionMap.get(linearSessionId);
     if (!companionSessionId) {
@@ -213,9 +221,8 @@ export class LinearAgentBridge {
         pendingText += (pendingText ? "\n" : "") + text;
       }
 
-      // Relay tool use as action activities
-      const tool = extractToolUse(msg);
-      if (tool) {
+      // Relay all tool use blocks as action activities (supports parallel tool calls)
+      for (const tool of extractToolUses(msg)) {
         linearAgent.postActivity(linearSessionId, {
           type: "action",
           action: tool.name,
