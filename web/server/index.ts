@@ -30,7 +30,6 @@ import { CronScheduler } from "./cron-scheduler.js";
 import { AgentExecutor } from "./agent-executor.js";
 import { migrateCronJobsToAgents } from "./agent-cron-migrator.js";
 import { LinearAgentBridge } from "./linear-agent-bridge.js";
-import { RelayClient } from "./relay-client.js";
 
 import { startPeriodicCheck, setServiceMode } from "./update-checker.js";
 import { imagePullManager } from "./image-pull-manager.js";
@@ -62,14 +61,16 @@ const agentExecutor = new AgentExecutor(launcher, wsBridge);
 const linearAgentBridge = new LinearAgentBridge(agentExecutor, wsBridge);
 
 // ── Cloud relay connection (for receiving webhooks behind a firewall) ────────
+// The relay forwards platform webhooks (e.g. GitHub, Slack) to the Companion
+// instance via an outbound WebSocket. Currently no webhook handlers are
+// registered (Chat SDK was removed). The relay is left disabled until handlers
+// are wired up (e.g. LinearAgentBridge or future platform integrations).
 if (process.env.COMPANION_RELAY_URL && process.env.COMPANION_RELAY_SECRET) {
-  const relayClient = new RelayClient(
-    process.env.COMPANION_RELAY_URL,
-    process.env.COMPANION_RELAY_SECRET,
-    { webhooks: {} },
+  console.warn(
+    "[server] COMPANION_RELAY_URL is set but no relay webhook handlers are registered. " +
+    "The relay client will not be started. Remove COMPANION_RELAY_URL/COMPANION_RELAY_SECRET " +
+    "or wire up webhook handlers to use relay mode.",
   );
-  relayClient.connect();
-  console.log(`[server] Relay client connecting to ${process.env.COMPANION_RELAY_URL}`);
 }
 
 // ── Restore persisted sessions from disk ────────────────────────────────────
