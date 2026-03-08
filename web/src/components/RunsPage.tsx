@@ -4,7 +4,7 @@ import { timeAgo } from "../utils/time-ago.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type TriggerFilter = "all" | "manual" | "webhook" | "schedule" | "chat";
+type TriggerFilter = "all" | "manual" | "webhook" | "schedule" | "chat" | "linear";
 type StatusFilter = "all" | "running" | "success" | "error";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -15,6 +15,7 @@ function triggerLabel(type: string): string {
     case "webhook": return "Webhook";
     case "schedule": return "Schedule";
     case "chat": return "Chat";
+    case "linear": return "Linear";
     default: return type;
   }
 }
@@ -25,6 +26,7 @@ function triggerColor(type: string): string {
     case "webhook": return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
     case "schedule": return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
     case "chat": return "bg-cc-success/10 text-cc-success";
+    case "linear": return "bg-violet-500/10 text-violet-600 dark:text-violet-400";
     default: return "bg-cc-hover text-cc-muted";
   }
 }
@@ -127,7 +129,7 @@ export function RunsPage() {
 
         {/* Trigger filter pills */}
         <div className="flex items-center gap-1">
-          {(["all", "manual", "webhook", "schedule", "chat"] as TriggerFilter[]).map((t) => (
+          {(["all", "manual", "webhook", "schedule", "chat", "linear"] as TriggerFilter[]).map((t) => (
             <button
               key={t}
               onClick={() => setTriggerFilter(t)}
