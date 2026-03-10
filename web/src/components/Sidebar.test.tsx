@@ -50,6 +50,7 @@ interface MockStoreState {
   recentlyRenamed: Set<string>;
   pendingPermissions: Map<string, Map<string, unknown>>;
   linkedLinearIssues: Map<string, unknown>;
+  sidebarGroupByProject: boolean;
   collapsedProjects: Set<string>;
   setCurrentSession: ReturnType<typeof vi.fn>;
   toggleProjectCollapse: ReturnType<typeof vi.fn>;
@@ -115,6 +116,7 @@ function createMockState(overrides: Partial<MockStoreState> = {}): MockStoreStat
     recentlyRenamed: new Set(),
     pendingPermissions: new Map(),
     linkedLinearIssues: new Map(),
+    sidebarGroupByProject: false,
     collapsedProjects: new Set(),
     setCurrentSession: vi.fn(),
     toggleProjectCollapse: vi.fn(),
@@ -204,12 +206,14 @@ describe("Sidebar", () => {
   });
 
   it("session items show project name in group header and full cwd path in session row", () => {
-    // "myapp" appears in the project group header, full cwd path appears in the session row
+    // "myapp" appears in the project group header, full cwd path appears in the session row.
+    // Requires sidebarGroupByProject to show project groups.
     const session = makeSession("s1", { cwd: "/home/user/projects/myapp" });
     const sdk = makeSdkSession("s1");
     mockState = createMockState({
       sessions: new Map([["s1", session]]),
       sdkSessions: [sdk],
+      sidebarGroupByProject: true,
     });
 
     render(<Sidebar />);
@@ -434,32 +438,38 @@ describe("Sidebar", () => {
   });
 
   it("navigates to environments page when Environments is clicked", () => {
+    // Navigation items are now in the gear menu dropdown.
     render(<Sidebar />);
-    fireEvent.click(screen.getByTitle("Environments"));
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
+    fireEvent.click(screen.getByText("Environments"));
     expect(window.location.hash).toBe("#/environments");
   });
 
   it("navigates to settings page when Settings is clicked", () => {
     render(<Sidebar />);
-    fireEvent.click(screen.getByTitle("Settings"));
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
+    fireEvent.click(screen.getByText("Settings"));
     expect(window.location.hash).toBe("#/settings");
   });
 
   it("navigates to integrations page when Integrations is clicked", () => {
     render(<Sidebar />);
-    fireEvent.click(screen.getByTitle("Integrations"));
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
+    fireEvent.click(screen.getByText("Integrations"));
     expect(window.location.hash).toBe("#/integrations");
   });
 
   it("navigates to prompts page when Prompts is clicked", () => {
     render(<Sidebar />);
-    fireEvent.click(screen.getByTitle("Prompts"));
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
+    fireEvent.click(screen.getByText("Prompts"));
     expect(window.location.hash).toBe("#/prompts");
   });
 
   it("navigates to terminal page when Terminal is clicked", () => {
     render(<Sidebar />);
-    fireEvent.click(screen.getByTitle("Terminal"));
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
+    fireEvent.click(screen.getByText("Terminal"));
     expect(window.location.hash).toBe("#/terminal");
   });
 
@@ -642,6 +652,7 @@ describe("Sidebar", () => {
   });
 
   it("sessions are grouped by project directory", () => {
+    // Project grouping requires sidebarGroupByProject to be enabled.
     const session1 = makeSession("s1", { cwd: "/home/user/project-a" });
     const session2 = makeSession("s2", { cwd: "/home/user/project-a" });
     const session3 = makeSession("s3", { cwd: "/home/user/project-b" });
@@ -651,6 +662,7 @@ describe("Sidebar", () => {
     mockState = createMockState({
       sessions: new Map([["s1", session1], ["s2", session2], ["s3", session3]]),
       sdkSessions: [sdk1, sdk2, sdk3],
+      sidebarGroupByProject: true,
     });
 
     render(<Sidebar />);
@@ -668,6 +680,7 @@ describe("Sidebar", () => {
       sessions: new Map([["s1", session1], ["s2", session2]]),
       sdkSessions: [sdk1, sdk2],
       sessionStatus: new Map([["s1", "running"], ["s2", "running"]]),
+      sidebarGroupByProject: true,
     });
 
     render(<Sidebar />);
@@ -684,6 +697,7 @@ describe("Sidebar", () => {
       sessions: new Map([["s1", session]]),
       sdkSessions: [sdk],
       collapsedProjects: new Set(["/home/user/myapp"]),
+      sidebarGroupByProject: true,
     });
 
     render(<Sidebar />);
@@ -742,11 +756,13 @@ describe("Sidebar", () => {
     expect(screen.queryByText("1h ago")).not.toBeInTheDocument();
   });
 
-  it("footer nav uses a vertical list layout with full labels", () => {
-    // The footer navigation uses a single-column vertical list where each
-    // item is a horizontal row with icon + full label (one line per item).
+  it("nav items are accessible via gear menu dropdown", () => {
+    // Navigation items moved from footer to a gear dropdown in the header.
+    // Clicking the gear button opens the SidebarMenu with all nav items.
     render(<Sidebar />);
-    // Full labels should be visible (not short labels)
+    const gearButton = screen.getByLabelText("Navigation menu");
+    fireEvent.click(gearButton);
+    // After opening, nav items should be visible inside the dropdown
     expect(screen.getByText("Environments")).toBeInTheDocument();
     expect(screen.getByText("Integrations")).toBeInTheDocument();
     expect(screen.getByText("Agents")).toBeInTheDocument();
@@ -755,13 +771,13 @@ describe("Sidebar", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it("footer navigation is grouped into clear sections", () => {
-    // Verifies that the redesigned menu exposes explicit grouping labels
-    // to improve scanability and information architecture.
+  it("gear menu button toggles open/closed state", () => {
+    // Verifies the gear button toggles the navigation dropdown.
     render(<Sidebar />);
-    expect(screen.getByText("Workbench")).toBeInTheDocument();
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
-    expect(screen.getByText("Resources")).toBeInTheDocument();
+    const gearButton = screen.getByLabelText("Navigation menu");
+    expect(gearButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(gearButton);
+    expect(gearButton).toHaveAttribute("aria-expanded", "true");
   });
 
   it("compact nav does not render helper subtitle lines", () => {
@@ -844,13 +860,13 @@ describe("Sidebar", () => {
     expect(nameEl).toHaveClass("truncate");
   });
 
-  it("footer nav buttons have title attributes for accessibility", () => {
-    // Verifies footer nav buttons have title attributes for tooltip/screen reader support.
+  it("gear menu and new session buttons have accessible labels", () => {
+    // Verifies the header buttons have proper aria labels for accessibility.
+    // There are two "New Session" buttons (desktop header + mobile FAB).
     render(<Sidebar />);
-    // Footer nav items should have descriptive titles from NAV_ITEMS
-    expect(screen.getByTitle("Prompts")).toBeInTheDocument();
-    expect(screen.getByTitle("Integrations")).toBeInTheDocument();
-    expect(screen.getByTitle("Settings")).toBeInTheDocument();
+    expect(screen.getByLabelText("Navigation menu")).toBeInTheDocument();
+    const newSessionButtons = screen.getAllByLabelText("New Session");
+    expect(newSessionButtons.length).toBeGreaterThanOrEqual(1);
   });
 
   it("passes axe accessibility checks", async () => {
@@ -1416,9 +1432,9 @@ describe("Sidebar", () => {
 
   // ─── Cron sessions section ─────────────────────────────────────────────────
 
-  it("renders Scheduled Runs section when cron sessions exist", () => {
+  it("renders Scheduled section when cron sessions exist", () => {
     // Verifies that sessions with cronJobId are displayed in a separate
-    // "Scheduled Runs" section with the correct count.
+    // "Scheduled" section with the correct count.
     const sdk1 = makeSdkSession("s1");
     const sdk2 = makeSdkSession("s2", { cronJobId: "cron-1", cronJobName: "Daily Build" });
     mockState = createMockState({
@@ -1426,12 +1442,12 @@ describe("Sidebar", () => {
     });
 
     render(<Sidebar />);
-    expect(screen.getByText(/Scheduled Runs \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Scheduled \(1\)/)).toBeInTheDocument();
   });
 
   it("cron sessions are not shown in the active sessions list", () => {
     // Verifies that sessions with a cronJobId are excluded from the main
-    // active sessions list and only appear under "Scheduled Runs".
+    // active sessions list and only appear under "Scheduled".
     const sdk1 = makeSdkSession("s1", { model: "regular-session" });
     const sdk2 = makeSdkSession("s2", { model: "cron-session", cronJobId: "cron-1" });
     mockState = createMockState({
@@ -1441,38 +1457,29 @@ describe("Sidebar", () => {
     render(<Sidebar />);
     // regular-session should be in the main list
     expect(screen.getByText("regular-session")).toBeInTheDocument();
-    // cron-session should appear under Scheduled Runs, not in main list
-    expect(screen.getByText(/Scheduled Runs \(1\)/)).toBeInTheDocument();
+    // cron-session should appear under Scheduled, not in main list
+    expect(screen.getByText(/Scheduled \(1\)/)).toBeInTheDocument();
   });
 
-  it("toggling Scheduled Runs section hides/shows cron sessions", () => {
-    // Verifies that the Scheduled Runs section can be collapsed and expanded
-    // via its toggle button.
+  it("scheduled sessions are always visible (non-collapsible compact label)", () => {
+    // Verifies that scheduled sessions are always visible under the
+    // compact "Scheduled" label (not collapsible like before).
     const sdk = makeSdkSession("s1", { model: "cron-model", cronJobId: "cron-1" });
     mockState = createMockState({
       sdkSessions: [sdk],
     });
 
     render(<Sidebar />);
-    // Initially expanded (showCronSessions defaults to true)
+    // Sessions should be visible under the Scheduled label
     expect(screen.getByText("cron-model")).toBeInTheDocument();
-
-    // Click to collapse
-    fireEvent.click(screen.getByText(/Scheduled Runs \(1\)/));
-
-    // Session should be hidden
-    expect(screen.queryByText("cron-model")).not.toBeInTheDocument();
-
-    // Click again to expand
-    fireEvent.click(screen.getByText(/Scheduled Runs \(1\)/));
-    expect(screen.getByText("cron-model")).toBeInTheDocument();
+    expect(screen.getByText(/Scheduled \(1\)/)).toBeInTheDocument();
   });
 
   // ─── Agent sessions section ────────────────────────────────────────────────
 
-  it("renders Agent Runs section when agent sessions exist", () => {
+  it("renders Agents section when agent sessions exist", () => {
     // Verifies that sessions with agentId are displayed in a separate
-    // "Agent Runs" section with the correct count.
+    // "Agents" section with the correct count.
     const sdk1 = makeSdkSession("s1");
     const sdk2 = makeSdkSession("s2", { agentId: "agent-1", agentName: "Code Reviewer" });
     mockState = createMockState({
@@ -1480,7 +1487,7 @@ describe("Sidebar", () => {
     });
 
     render(<Sidebar />);
-    expect(screen.getByText(/Agent Runs \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Agents \(1\)/)).toBeInTheDocument();
   });
 
   it("agent sessions are separate from active sessions", () => {
@@ -1494,13 +1501,12 @@ describe("Sidebar", () => {
 
     render(<Sidebar />);
     expect(screen.getByText("normal")).toBeInTheDocument();
-    expect(screen.getByText(/Agent Runs \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Agents \(1\)/)).toBeInTheDocument();
   });
 
-  it("toggling Agent Runs section hides/shows agent sessions", () => {
-    // Verifies that the Agent Runs section can be collapsed and expanded.
-    // Note: we need at least one active session to prevent the "No sessions yet."
-    // empty state from hiding the agent sessions section entirely.
+  it("agent sessions are always visible (non-collapsible compact label)", () => {
+    // Verifies that agent sessions are always visible under the
+    // compact "Agents" label (not collapsible like before).
     const sdkActive = makeSdkSession("s-active", { model: "active-model" });
     const sdk = makeSdkSession("s1", { model: "agent-model", agentId: "agent-1" });
     mockState = createMockState({
@@ -1508,29 +1514,23 @@ describe("Sidebar", () => {
     });
 
     render(<Sidebar />);
-    // Initially expanded
+    // Sessions should be visible under the Agents label
     expect(screen.getByText("agent-model")).toBeInTheDocument();
-
-    // Collapse
-    fireEvent.click(screen.getByText(/Agent Runs \(1\)/));
-    expect(screen.queryByText("agent-model")).not.toBeInTheDocument();
-
-    // Expand again
-    fireEvent.click(screen.getByText(/Agent Runs \(1\)/));
-    expect(screen.getByText("agent-model")).toBeInTheDocument();
+    expect(screen.getByText(/Agents \(1\)/)).toBeInTheDocument();
   });
 
-  // ─── Footer nav: closeTerminal behavior ────────────────────────────────────
+  // ─── Gear menu nav: closeTerminal behavior ─────────────────────────────────
 
-  it("clicking a non-terminal nav item calls closeTerminal", () => {
+  it("clicking a non-terminal nav item in gear menu calls closeTerminal", () => {
     // Verifies that clicking any nav item except Terminal calls closeTerminal()
     // to dismiss the terminal overlay.
     render(<Sidebar />);
-    fireEvent.click(screen.getByTitle("Prompts"));
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
+    fireEvent.click(screen.getByText("Prompts"));
     expect(mockState.closeTerminal).toHaveBeenCalled();
   });
 
-  it("clicking Terminal nav item does NOT call closeTerminal", () => {
+  it("clicking Terminal nav item in gear menu does NOT call closeTerminal", () => {
     // Verifies that clicking the Terminal nav item does NOT call closeTerminal,
     // since the terminal should remain open when navigating to it.
     render(<Sidebar />);
@@ -1538,7 +1538,8 @@ describe("Sidebar", () => {
     // Reset mocks from initial poll
     mockState.closeTerminal.mockClear();
 
-    fireEvent.click(screen.getByTitle("Terminal"));
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
+    fireEvent.click(screen.getByText("Terminal"));
     expect(mockState.closeTerminal).not.toHaveBeenCalled();
   });
 
@@ -1566,36 +1567,38 @@ describe("Sidebar", () => {
     expect(mockState.closeTerminal).toHaveBeenCalled();
   });
 
-  // ─── Footer nav: active state ──────────────────────────────────────────────
+  // ─── Gear menu nav: active state ────────────────────────────────────────────
 
-  it("footer nav button shows active state when on its page", () => {
-    // Verifies that the footer nav button for the current page gets the
+  it("gear menu nav item shows active state when on its page", () => {
+    // Verifies that the nav button for the current page gets the
     // bg-cc-active class to indicate the user is on that page.
     window.location.hash = "#/settings";
     render(<Sidebar />);
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const settingsBtn = screen.getByTitle("Settings");
+    const settingsBtn = screen.getByText("Settings").closest("button");
     expect(settingsBtn).toHaveClass("bg-cc-active");
   });
 
-  it("integrations nav button shows active for both integrations and integration-linear pages", () => {
+  it("integrations nav item shows active for both integrations and integration-linear pages", () => {
     // Verifies that the Integrations nav button correctly uses activePages
     // to highlight for sub-pages like integration-linear.
     window.location.hash = "#/integrations";
     render(<Sidebar />);
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const integrationsBtn = screen.getByTitle("Integrations");
+    const integrationsBtn = screen.getByText("Integrations").closest("button");
     expect(integrationsBtn).toHaveClass("bg-cc-active");
   });
 
-  it("agents nav button is active on agent detail routes with aria-current", () => {
-    // Verifies active state semantics for nested agent pages.
+  it("agents nav button is active on agent detail routes", () => {
+    // Verifies active state for nested agent pages in the gear menu.
     window.location.hash = "#/agents/agent-123";
     render(<Sidebar />);
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const agentsBtn = screen.getByTitle("Agents");
+    const agentsBtn = screen.getByText("Agents").closest("button");
     expect(agentsBtn).toHaveClass("bg-cc-active");
-    expect(agentsBtn).toHaveAttribute("aria-current", "page");
   });
 
   // ─── Close sidebar button (mobile) ─────────────────────────────────────────
@@ -1613,9 +1616,9 @@ describe("Sidebar", () => {
 
   // ─── Logo source based on backend type ─────────────────────────────────────
 
-  it("shows codex logo when current session uses codex backend", () => {
-    // Verifies that the sidebar header logo changes to the Codex logo when
-    // the currently selected session has backendType "codex".
+  it("sidebar header does not display a logo (simplified design)", () => {
+    // The logo was removed from the sidebar header in the UI redesign.
+    // The sidebar now shows "New Session" button + gear menu instead.
     const sdk = makeSdkSession("s1", { backendType: "codex" });
     mockState = createMockState({
       sdkSessions: [sdk],
@@ -1623,34 +1626,21 @@ describe("Sidebar", () => {
     });
 
     const { container } = render(<Sidebar />);
-    const logo = container.querySelector("img[src='/logo-codex.svg']");
-    expect(logo).toBeTruthy();
+    const logo = container.querySelector("img");
+    expect(logo).toBeNull();
   });
 
-  it("shows default logo when current session uses claude backend", () => {
-    // Verifies that the sidebar header logo is the default when the currently
-    // selected session has backendType "claude".
-    const sdk = makeSdkSession("s1", { backendType: "claude" });
-    mockState = createMockState({
-      sdkSessions: [sdk],
-      currentSessionId: "s1",
-    });
+  // ─── External links in gear menu ────────────────────────────────────────────
 
-    const { container } = render(<Sidebar />);
-    const logo = container.querySelector("img[src='/logo.svg']");
-    expect(logo).toBeTruthy();
-  });
-
-  // ─── External links in footer ──────────────────────────────────────────────
-
-  it("renders external links for Documentation, GitHub, and Website", () => {
-    // Verifies that all three external icon-only links are rendered in the
-    // sidebar footer with correct href values.
+  it("renders external links for Documentation, GitHub, and Website in gear menu", () => {
+    // Verifies that all three external links appear in the gear menu dropdown
+    // with correct href values.
     render(<Sidebar />);
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const docsLink = screen.getByLabelText("Open documentation");
-    const githubLink = screen.getByLabelText("Open github");
-    const websiteLink = screen.getByLabelText("Open website");
+    const docsLink = screen.getByText("Documentation").closest("a");
+    const githubLink = screen.getByText("GitHub").closest("a");
+    const websiteLink = screen.getByText("Website").closest("a");
 
     expect(docsLink).toBeInTheDocument();
     expect(githubLink).toBeInTheDocument();
@@ -1661,15 +1651,16 @@ describe("Sidebar", () => {
     expect(websiteLink).toHaveAttribute("href", "https://thecompanion.sh");
   });
 
-  it("external links open in new tab with secure attributes", () => {
+  it("external links in gear menu open in new tab with secure attributes", () => {
     // Verifies that all external links use target="_blank" and
     // rel="noopener noreferrer" to prevent reverse-tabnabbing.
     render(<Sidebar />);
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
 
     const links = [
-      screen.getByLabelText("Open documentation"),
-      screen.getByLabelText("Open github"),
-      screen.getByLabelText("Open website"),
+      screen.getByText("Documentation").closest("a")!,
+      screen.getByText("GitHub").closest("a")!,
+      screen.getByText("Website").closest("a")!,
     ];
 
     for (const link of links) {
@@ -1678,28 +1669,19 @@ describe("Sidebar", () => {
     }
   });
 
-  it("external links have title attributes for tooltip accessibility", () => {
-    // Verifies that each external link has a title attribute for tooltips
-    // and screen reader support.
-    render(<Sidebar />);
-
-    expect(screen.getByTitle("Documentation")).toBeInTheDocument();
-    expect(screen.getByTitle("GitHub")).toBeInTheDocument();
-    expect(screen.getByTitle("Website")).toBeInTheDocument();
-  });
-
-  it("external links are rendered as anchor elements (not buttons)", () => {
+  it("external links in gear menu are rendered as anchor elements (not buttons)", () => {
     // Verifies that external links use <a> tags for proper semantic HTML,
     // distinguishing them from internal nav buttons.
     render(<Sidebar />);
+    fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const docsLink = screen.getByLabelText("Open documentation");
-    const githubLink = screen.getByLabelText("Open github");
-    const websiteLink = screen.getByLabelText("Open website");
+    const docsLink = screen.getByText("Documentation").closest("a");
+    const githubLink = screen.getByText("GitHub").closest("a");
+    const websiteLink = screen.getByText("Website").closest("a");
 
-    expect(docsLink.tagName).toBe("A");
-    expect(githubLink.tagName).toBe("A");
-    expect(websiteLink.tagName).toBe("A");
+    expect(docsLink!.tagName).toBe("A");
+    expect(githubLink!.tagName).toBe("A");
+    expect(websiteLink!.tagName).toBe("A");
   });
 
   // ─── Delete modal inner click propagation ──────────────────────────────────
