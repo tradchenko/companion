@@ -3,7 +3,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 // ─── Mock linear-connections ────────────────────────────────────────────────
 // Each function is declared as a vi.fn() so we can control return values per test.
 const mockListConnections = vi.fn(() => [] as any[]);
-const mockGetConnection = vi.fn(() => null as any);
+const mockGetConnection = vi.fn((_id: string) => null as any);
 const mockCreateConnection = vi.fn((data: { name: string; apiKey: string }) => ({
   id: "new-conn-id",
   name: data.name,
@@ -26,11 +26,11 @@ const mockUpdateConnection = vi.fn((_id: string, _patch: any) => null as any);
 const mockDeleteConnection = vi.fn((_id: string) => false);
 
 vi.mock("../linear-connections.js", () => ({
-  listConnections: (...args: unknown[]) => mockListConnections(),
-  getConnection: (...args: unknown[]) => mockGetConnection(...args),
-  createConnection: (...args: unknown[]) => mockCreateConnection(...args as [any]),
-  updateConnection: (...args: unknown[]) => mockUpdateConnection(...args as [string, any]),
-  deleteConnection: (...args: unknown[]) => mockDeleteConnection(...args as [string]),
+  listConnections: () => mockListConnections(),
+  getConnection: (id: string) => mockGetConnection(id),
+  createConnection: (data: any) => mockCreateConnection(data),
+  updateConnection: (id: string, patch: any) => mockUpdateConnection(id, patch),
+  deleteConnection: (id: string) => mockDeleteConnection(id),
 }));
 
 // ─── Mock linear-cache ──────────────────────────────────────────────────────
