@@ -108,6 +108,23 @@ describe("settings-manager", () => {
     expect(getSettings().anthropicModel).toBe(DEFAULT_ANTHROPIC_MODEL);
   });
 
+  // Migration: existing users with the old dot-form model ID should be auto-corrected
+  it("migrates persisted claude-sonnet-4.6 (dot) to claude-sonnet-4-6 (hyphen)", () => {
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        anthropicApiKey: "sk-ant-existing",
+        anthropicModel: "claude-sonnet-4.6",
+      }),
+      "utf-8",
+    );
+    _resetForTest(settingsPath);
+
+    const settings = getSettings();
+    expect(settings.anthropicModel).toBe(DEFAULT_ANTHROPIC_MODEL);
+    expect(settings.anthropicApiKey).toBe("sk-ant-existing");
+  });
+
   it("updates only model while preserving existing key", () => {
     updateSettings({ anthropicApiKey: "sk-ant-key" });
     const updated = updateSettings({ anthropicModel: "claude-haiku-3" });
