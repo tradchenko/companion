@@ -335,7 +335,7 @@ export function createRoutes(
             : []);
         const containerPorts: (number | { port: number; hostIp?: string })[] = [
           ...Array.from(new Set([
-            ...requestedPorts,
+            ...requestedPorts.filter((p: number) => p !== NOVNC_CONTAINER_PORT),
             VSCODE_EDITOR_CONTAINER_PORT,
             ...(backend === "codex" ? [CODEX_APP_SERVER_CONTAINER_PORT] : []),
           ])),
