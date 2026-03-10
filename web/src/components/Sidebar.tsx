@@ -353,7 +353,7 @@ export function Sidebar() {
             title="Menu"
             aria-label="Navigation menu"
             aria-expanded={menuOpen}
-            className="hidden md:flex w-9 h-9 shrink-0 rounded-lg items-center justify-center text-cc-muted hover:text-cc-fg hover:bg-cc-hover transition-colors cursor-pointer border border-cc-border/40"
+            className="flex w-9 h-9 shrink-0 rounded-lg items-center justify-center text-cc-muted hover:text-cc-fg hover:bg-cc-hover transition-colors cursor-pointer border border-cc-border/40"
           >
             {/* Gear icon */}
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
