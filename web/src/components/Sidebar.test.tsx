@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { SessionState, SdkSessionInfo } from "../types.js";
 
@@ -1574,11 +1574,14 @@ describe("Sidebar", () => {
   it("gear menu nav item shows active state when on its page", () => {
     // Verifies that the nav button for the current page gets the
     // bg-cc-active class to indicate the user is on that page.
+    // When on an admin page, both sidebar body nav and gear menu show nav items.
     window.location.hash = "#/settings";
     render(<Sidebar />);
     fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const settingsBtn = screen.getByText("Settings").closest("button");
+    // Find the Settings button inside the gear menu (role="menu")
+    const menu = screen.getByRole("menu");
+    const settingsBtn = within(menu).getByText("Settings").closest("button");
     expect(settingsBtn).toHaveClass("bg-cc-active");
   });
 
@@ -1589,7 +1592,8 @@ describe("Sidebar", () => {
     render(<Sidebar />);
     fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const integrationsBtn = screen.getByText("Integrations").closest("button");
+    const menu = screen.getByRole("menu");
+    const integrationsBtn = within(menu).getByText("Integrations").closest("button");
     expect(integrationsBtn).toHaveClass("bg-cc-active");
   });
 
@@ -1599,9 +1603,68 @@ describe("Sidebar", () => {
     render(<Sidebar />);
     fireEvent.click(screen.getByLabelText("Navigation menu"));
 
-    const agentsBtn = screen.getByText("Agents").closest("button");
+    const menu = screen.getByRole("menu");
+    const agentsBtn = within(menu).getByText("Agents").closest("button");
     expect(agentsBtn).toHaveClass("bg-cc-active");
     expect(agentsBtn).toHaveAttribute("aria-current", "page");
+  });
+
+  // ─── Admin nav in sidebar body ──────────────────────────────────────────────
+
+  it("shows admin nav items instead of sessions when on an admin page", () => {
+    // When navigated to an admin page (e.g. settings), the sidebar body
+    // should show navigation items instead of the session list.
+    window.location.hash = "#/settings";
+    render(<Sidebar />);
+
+    const adminNav = screen.getByRole("navigation", { name: "Admin navigation" });
+    expect(adminNav).toBeInTheDocument();
+    expect(within(adminNav).getByText("Prompts")).toBeInTheDocument();
+    expect(within(adminNav).getByText("Integrations")).toBeInTheDocument();
+    expect(within(adminNav).getByText("Settings")).toBeInTheDocument();
+  });
+
+  it("shows session list (not admin nav) when on home page", () => {
+    // When on home/session page, the sidebar should show sessions, not admin nav.
+    window.location.hash = "";
+    const sdk = makeSdkSession("s1", { model: "claude" });
+    mockState = createMockState({ sdkSessions: [sdk] });
+    render(<Sidebar />);
+
+    expect(screen.queryByRole("navigation", { name: "Admin navigation" })).not.toBeInTheDocument();
+  });
+
+  it("admin nav highlights the active page with aria-current", () => {
+    // Verifies the sidebar admin nav marks the current page with aria-current.
+    window.location.hash = "#/prompts";
+    render(<Sidebar />);
+
+    const adminNav = screen.getByRole("navigation", { name: "Admin navigation" });
+    const promptsBtn = within(adminNav).getByText("Prompts").closest("button");
+    expect(promptsBtn).toHaveAttribute("aria-current", "page");
+  });
+
+  // ─── External links footer ────────────────────────────────────────────────
+
+  it("renders external link icons in the sidebar footer", () => {
+    // Verifies that Documentation, GitHub, and Website icons appear
+    // in the sidebar footer with correct hrefs.
+    render(<Sidebar />);
+    const docsLink = screen.getByTitle("Documentation");
+    const githubLink = screen.getByTitle("GitHub");
+    const websiteLink = screen.getByTitle("Website");
+
+    expect(docsLink.closest("a")).toHaveAttribute("href", "https://docs.thecompanion.sh");
+    expect(githubLink.closest("a")).toHaveAttribute("href", "https://github.com/The-Vibe-Company/companion");
+    expect(websiteLink.closest("a")).toHaveAttribute("href", "https://thecompanion.sh");
+  });
+
+  it("external link icons in footer open in new tab", () => {
+    // Verifies that footer external links use target="_blank" and rel="noopener noreferrer".
+    render(<Sidebar />);
+    const docsLink = screen.getByTitle("Documentation").closest("a");
+    expect(docsLink).toHaveAttribute("target", "_blank");
+    expect(docsLink).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   // ─── Close sidebar button (mobile) ─────────────────────────────────────────

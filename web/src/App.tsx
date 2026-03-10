@@ -16,7 +16,6 @@ import { SessionLaunchOverlay } from "./components/SessionLaunchOverlay.js";
 import { SessionTerminalDock } from "./components/SessionTerminalDock.js";
 import { SessionEditorPane } from "./components/SessionEditorPane.js";
 import { UpdateOverlay } from "./components/UpdateOverlay.js";
-import { AdminLayout } from "./components/AdminLayout.js";
 
 // Lazy-loaded route-level pages (not needed for initial render)
 const Playground = lazy(() => import("./components/Playground.js").then((m) => ({ default: m.Playground })));
@@ -77,7 +76,6 @@ export default function App() {
   const isAgentsPage = route.page === "agents" || route.page === "agent-detail";
   const isRunsPage = route.page === "runs";
   const isSessionView = route.page === "session" || route.page === "home";
-  const isAdminPage = isSettingsPage || isPromptsPage || isIntegrationsPage || isLinearIntegrationPage || isTailscaleIntegrationPage || isTerminalPage || isEnvironmentsPage || isDockerBuilderPage || isScheduledPage || isAgentsPage || isRunsPage;
 
   useEffect(() => {
     capturePageView(hash || "#/");
@@ -201,23 +199,69 @@ export default function App() {
         <TopBar />
         <UpdateBanner />
         <div className="flex-1 overflow-hidden relative">
-          {isAdminPage && (
+          {isSettingsPage && (
             <div className="absolute inset-0">
-              <AdminLayout>
-                <Suspense fallback={<LazyFallback />}>
-                  {isSettingsPage && <SettingsPage embedded />}
-                  {isPromptsPage && <PromptsPage embedded />}
-                  {isIntegrationsPage && <IntegrationsPage embedded />}
-                  {isLinearIntegrationPage && <LinearSettingsPage embedded />}
-                  {isTailscaleIntegrationPage && <TailscalePage embedded />}
-                  {isTerminalPage && <TerminalPage />}
-                  {isEnvironmentsPage && <EnvManager embedded />}
-                  {isDockerBuilderPage && <DockerBuilderPage />}
-                  {isScheduledPage && <CronManager embedded />}
-                  {isAgentsPage && <AgentsPage route={route} />}
-                  {isRunsPage && <RunsPage />}
-                </Suspense>
-              </AdminLayout>
+              <Suspense fallback={<LazyFallback />}><SettingsPage embedded /></Suspense>
+            </div>
+          )}
+
+          {isPromptsPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><PromptsPage embedded /></Suspense>
+            </div>
+          )}
+
+          {isIntegrationsPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><IntegrationsPage embedded /></Suspense>
+            </div>
+          )}
+
+          {isLinearIntegrationPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><LinearSettingsPage embedded /></Suspense>
+            </div>
+          )}
+
+          {isTailscaleIntegrationPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><TailscalePage embedded /></Suspense>
+            </div>
+          )}
+
+          {isTerminalPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><TerminalPage /></Suspense>
+            </div>
+          )}
+
+          {isEnvironmentsPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><EnvManager embedded /></Suspense>
+            </div>
+          )}
+
+          {isDockerBuilderPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><DockerBuilderPage /></Suspense>
+            </div>
+          )}
+
+          {isScheduledPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><CronManager embedded /></Suspense>
+            </div>
+          )}
+
+          {isAgentsPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><AgentsPage route={route} /></Suspense>
+            </div>
+          )}
+
+          {isRunsPage && (
+            <div className="absolute inset-0">
+              <Suspense fallback={<LazyFallback />}><RunsPage /></Suspense>
             </div>
           )}
 
