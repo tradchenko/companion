@@ -33,6 +33,8 @@ import { registerTailscaleRoutes } from "./routes/tailscale-routes.js";
 import { registerGitRoutes } from "./routes/git-routes.js";
 import { registerSystemRoutes } from "./routes/system-routes.js";
 import { registerLinearRoutes, transitionLinearIssue, fetchLinearTeamStates } from "./routes/linear-routes.js";
+import { registerLinearConnectionRoutes } from "./routes/linear-connection-routes.js";
+import { getConnection, listConnections } from "./linear-connections.js";
 import { getSettings } from "./settings-manager.js";
 import { discoverClaudeSessions } from "./claude-session-discovery.js";
 import { getClaudeSessionHistoryPage } from "./claude-session-history.js";
@@ -62,6 +64,7 @@ export function createRoutes(
   agentExecutor?: import("./agent-executor.js").AgentExecutor,
   linearAgentBridge?: import("./linear-agent-bridge.js").LinearAgentBridge,
   port?: number,
+  clearAutoRelaunchCount?: (sessionId: string) => void,
 ) {
   const api = new Hono();
 
@@ -205,6 +208,14 @@ export function createRoutes(
         console.warn(
           `[routes] Environment "${body.envSlug}" not found, ignoring`,
         );
+      }
+
+      // Inject LINEAR_API_KEY if a Linear connection is specified
+      if (body.linearConnectionId) {
+        const conn = getConnection(body.linearConnectionId);
+        if (conn?.apiKey) {
+          envVars = { ...envVars, LINEAR_API_KEY: conn.apiKey };
+        }
       }
 
       // Resolve Docker image early so we know whether git ops should run on host or in container
@@ -494,6 +505,14 @@ export function createRoutes(
         const companionEnv = body.envSlug ? envManager.getEnv(body.envSlug) : null;
         if (body.envSlug && companionEnv) {
           envVars = { ...companionEnv.variables, ...body.env };
+        }
+
+        // Inject LINEAR_API_KEY if a Linear connection is specified
+        if (body.linearConnectionId) {
+          const conn = getConnection(body.linearConnectionId);
+          if (conn?.apiKey) {
+            envVars = { ...envVars, LINEAR_API_KEY: conn.apiKey };
+          }
         }
 
         // Resolve Docker image early so we know whether git ops should run on host or in container
@@ -1061,6 +1080,7 @@ export function createRoutes(
 
   api.post("/sessions/:id/relaunch", async (c) => {
     const id = c.req.param("id");
+    clearAutoRelaunchCount?.(id);
     const result = await launcher.relaunch(id);
     if (!result.ok) {
       const status = result.error?.includes("not found") || result.error?.includes("Session not found") ? 404 : 503;
@@ -1611,6 +1631,7 @@ export function createRoutes(
   // ─── Linear ────────────────────────────────────────────────────────
 
   registerLinearRoutes(api);
+  registerLinearConnectionRoutes(api);
 
   registerGitRoutes(api, prPoller);
   registerSystemRoutes(api, {

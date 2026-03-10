@@ -17,6 +17,11 @@ const mockApi = {
   getLinearOAuthStatus: vi.fn(),
   getLinearOAuthAuthorizeUrl: vi.fn(),
   disconnectLinearOAuth: vi.fn(),
+  listLinearConnections: vi.fn(),
+  createLinearConnection: vi.fn(),
+  deleteLinearConnection: vi.fn(),
+  verifyLinearConnection: vi.fn(),
+  updateLinearConnection: vi.fn(),
 };
 
 vi.mock("../api.js", () => ({
@@ -28,6 +33,11 @@ vi.mock("../api.js", () => ({
     getLinearOAuthStatus: (...args: unknown[]) => mockApi.getLinearOAuthStatus(...args),
     getLinearOAuthAuthorizeUrl: (...args: unknown[]) => mockApi.getLinearOAuthAuthorizeUrl(...args),
     disconnectLinearOAuth: (...args: unknown[]) => mockApi.disconnectLinearOAuth(...args),
+    listLinearConnections: (...args: unknown[]) => mockApi.listLinearConnections(...args),
+    createLinearConnection: (...args: unknown[]) => mockApi.createLinearConnection(...args),
+    deleteLinearConnection: (...args: unknown[]) => mockApi.deleteLinearConnection(...args),
+    verifyLinearConnection: (...args: unknown[]) => mockApi.verifyLinearConnection(...args),
+    updateLinearConnection: (...args: unknown[]) => mockApi.updateLinearConnection(...args),
   },
 }));
 
@@ -39,21 +49,40 @@ vi.mock("../store.js", () => {
 
 import { LinearSettingsPage } from "./LinearSettingsPage.js";
 
+const defaultConnection = {
+  id: "conn-1",
+  name: "Work",
+  apiKeyLast4: "1234",
+  workspaceName: "Acme",
+  workspaceId: "ws-1",
+  viewerName: "Ada",
+  viewerEmail: "ada@example.com",
+  connected: true,
+  autoTransition: false,
+  autoTransitionStateId: "",
+  autoTransitionStateName: "",
+  archiveTransition: false,
+  archiveTransitionStateId: "",
+  archiveTransitionStateName: "",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockState = { currentSessionId: null, publicUrl: "" };
-  mockApi.getSettings.mockResolvedValue({
-    anthropicApiKeyConfigured: false,
-    anthropicModel: "claude-sonnet-4.6",
-    linearApiKeyConfigured: true,
-    linearAutoTransition: false,
-    linearAutoTransitionStateName: "",
-    linearArchiveTransition: false,
-    linearArchiveTransitionStateName: "",
-    linearOAuthConfigured: false,
-    linearOAuthCredentialsSaved: false,
+
+  // Default: list one connected connection
+  mockApi.listLinearConnections.mockResolvedValue({
+    connections: [defaultConnection],
   });
-  mockApi.getLinearOAuthStatus.mockResolvedValue({ configured: false, hasClientId: false, hasClientSecret: false, hasWebhookSecret: false, hasAccessToken: false });
+
+  mockApi.getLinearOAuthStatus.mockResolvedValue({
+    configured: false,
+    hasClientId: false,
+    hasClientSecret: false,
+    hasWebhookSecret: false,
+    hasAccessToken: false,
+  });
+
   mockApi.updateSettings.mockResolvedValue({
     anthropicApiKeyConfigured: false,
     anthropicModel: "claude-sonnet-4.6",
@@ -63,6 +92,7 @@ beforeEach(() => {
     linearArchiveTransition: false,
     linearArchiveTransitionStateName: "",
   });
+
   mockApi.getLinearStates.mockResolvedValue({
     teams: [
       {
@@ -77,152 +107,295 @@ beforeEach(() => {
       },
     ],
   });
-  mockApi.getLinearConnection.mockResolvedValue({
-    connected: true,
-    viewerName: "Ada",
-    viewerEmail: "ada@example.com",
-    teamName: "Engineering",
-    teamKey: "ENG",
+
+  mockApi.createLinearConnection.mockResolvedValue({
+    connection: { ...defaultConnection, id: "conn-new", name: "New" },
+  });
+
+  mockApi.updateLinearConnection.mockResolvedValue({
+    connection: defaultConnection,
   });
 });
 
-describe("LinearSettingsPage", () => {
-  it("loads Linear configuration status", async () => {
+// =============================================================================
+// Connection list
+// =============================================================================
+
+describe("LinearSettingsPage — connection list", () => {
+  it("loads and displays connections on mount", async () => {
+    // Verifies that the connection list is fetched and rendered on mount.
     render(<LinearSettingsPage />);
-    expect(mockApi.getSettings).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("Linear key configured")).toBeInTheDocument();
+    expect(mockApi.listLinearConnections).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Work")).toBeInTheDocument();
   });
 
-  it("saves trimmed Linear API key", async () => {
+  it("shows empty state when no connections exist", async () => {
+    // Verifies the empty state message when no connections are configured.
+    mockApi.listLinearConnections.mockResolvedValue({ connections: [] });
     render(<LinearSettingsPage />);
-    await screen.findByText("Linear key configured");
+    expect(await screen.findByText("No Linear connections yet.")).toBeInTheDocument();
+  });
 
-    fireEvent.change(screen.getByLabelText("Linear API Key"), {
-      target: { value: "  lin_api_123  " },
+  it("shows connection card with status badge and masked key", async () => {
+    // Verifies that connection cards display name, connected badge,
+    // viewer/workspace info, and masked API key.
+    render(<LinearSettingsPage />);
+    expect(await screen.findByText("Work")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByText(/Ada/)).toBeInTheDocument();
+    expect(screen.getByText(/...1234/)).toBeInTheDocument();
+  });
+
+  it("shows hero status banner with connected count", async () => {
+    // Verifies the hero banner shows connected count and total connections.
+    render(<LinearSettingsPage />);
+    expect(await screen.findByText("1 connected")).toBeInTheDocument();
+    expect(screen.getByText("1 connection configured")).toBeInTheDocument();
+  });
+
+  it("shows 'Not connected' badge for unverified connections", async () => {
+    // Verifies that a connection without connected=true shows the right badge.
+    mockApi.listLinearConnections.mockResolvedValue({
+      connections: [{ ...defaultConnection, connected: false }],
     });
-    // Click the credentials Save button (first one; the second is auto-transition Save)
-    const saveButtons = screen.getAllByRole("button", { name: "Save" });
-    fireEvent.click(saveButtons[0]);
+    render(<LinearSettingsPage />);
+    expect(await screen.findByText("Not connected")).toBeInTheDocument();
+  });
+});
+
+// =============================================================================
+// Add connection
+// =============================================================================
+
+describe("LinearSettingsPage — add connection", () => {
+  it("toggles the add connection form", async () => {
+    // Verifies clicking Add Connection shows the form and Cancel hides it.
+    render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Connection" }));
+    expect(screen.getByLabelText("Connection Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("API Key")).toBeInTheDocument();
+
+    // Button should now say "Cancel"
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("Connection Name")).toBeNull();
+  });
+
+  it("creates a new connection and reloads the list", async () => {
+    // Verifies that submitting the add form calls createLinearConnection
+    // and then reloads the connection list.
+    render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Connection" }));
+
+    fireEvent.change(screen.getByLabelText("Connection Name"), {
+      target: { value: "Personal" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: "lin_api_personal" },
+    });
+
+    const saveBtn = screen.getByRole("button", { name: "Save" });
+    fireEvent.click(saveBtn);
 
     await waitFor(() => {
-      expect(mockApi.updateSettings).toHaveBeenCalledWith({ linearApiKey: "lin_api_123" });
+      expect(mockApi.createLinearConnection).toHaveBeenCalledWith({
+        name: "Personal",
+        apiKey: "lin_api_personal",
+      });
     });
-    expect(mockApi.getLinearConnection).toHaveBeenCalled();
-    expect(await screen.findByText("Integration saved.")).toBeInTheDocument();
+    // Should reload connections after adding
+    expect(mockApi.listLinearConnections).toHaveBeenCalledTimes(2);
   });
 
-  it("shows an error when saving empty key", async () => {
+  it("shows validation error when name or key is empty", async () => {
+    // Verifies the form shows an error if name or key is not provided.
     render(<LinearSettingsPage />);
-    await screen.findByText("Linear key configured");
-    // Click the credentials Save button (first one)
-    const saveButtons = screen.getAllByRole("button", { name: "Save" });
-    fireEvent.click(saveButtons[0]);
-    expect(await screen.findByText("Please enter a Linear API key.")).toBeInTheDocument();
-    expect(mockApi.updateSettings).not.toHaveBeenCalled();
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Connection" }));
+    // Save button should be disabled when fields are empty
+    const saveBtn = screen.getByRole("button", { name: "Save" });
+    expect(saveBtn).toBeDisabled();
   });
 
-  it("verifies connection when Verify is clicked", async () => {
+  it("shows error from API when create fails", async () => {
+    // Verifies that an API error message is displayed in the form.
+    mockApi.createLinearConnection.mockResolvedValue({ error: "Invalid API key" });
     render(<LinearSettingsPage />);
-    await screen.findByText("Linear key configured");
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Connection" }));
+    fireEvent.change(screen.getByLabelText("Connection Name"), {
+      target: { value: "Bad" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: "lin_api_bad" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Invalid API key")).toBeInTheDocument();
+  });
+});
+
+// =============================================================================
+// Delete / Verify connections
+// =============================================================================
+
+describe("LinearSettingsPage — delete and verify", () => {
+  it("deletes a connection when Delete is clicked", async () => {
+    // Verifies calling deleteLinearConnection and reloading the list.
+    mockApi.deleteLinearConnection.mockResolvedValue({});
+    render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(mockApi.deleteLinearConnection).toHaveBeenCalledWith("conn-1");
+    });
+    // Should reload after deletion
+    expect(mockApi.listLinearConnections).toHaveBeenCalledTimes(2);
+  });
+
+  it("verifies a connection when Verify is clicked", async () => {
+    // Verifies calling verifyLinearConnection and reloading the list.
+    mockApi.verifyLinearConnection.mockResolvedValue({});
+    render(<LinearSettingsPage />);
+    await screen.findByText("Work");
 
     fireEvent.click(screen.getByRole("button", { name: "Verify" }));
 
     await waitFor(() => {
-      expect(mockApi.getLinearConnection).toHaveBeenCalled();
+      expect(mockApi.verifyLinearConnection).toHaveBeenCalledWith("conn-1");
     });
-    expect(await screen.findByText("Linear connection verified.")).toBeInTheDocument();
-  });
-
-  it("disconnects Linear integration", async () => {
-    mockApi.updateSettings.mockResolvedValueOnce({
-      anthropicApiKeyConfigured: false,
-      anthropicModel: "claude-sonnet-4.6",
-      linearApiKeyConfigured: false,
-    });
-
-    render(<LinearSettingsPage />);
-    await screen.findByText("Linear key configured");
-
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
-
-    await waitFor(() => {
-      expect(mockApi.updateSettings).toHaveBeenCalledWith({ linearApiKey: "" });
-    });
-    expect(await screen.findByText("Linear disconnected.")).toBeInTheDocument();
+    // Should reload to reflect new verification status
+    expect(mockApi.listLinearConnections).toHaveBeenCalledTimes(2);
   });
 });
 
-describe("LinearSettingsPage — archive transition settings", () => {
-  it("renders the 'On session archive' section when connected", async () => {
-    // Verifies that the archive transition settings section appears when the
-    // Linear integration is connected and team states are available.
+// =============================================================================
+// Edit connection (auto-transition / archive transition settings)
+// =============================================================================
+
+describe("LinearSettingsPage — edit connection settings", () => {
+  it("opens the edit panel and loads workflow states", async () => {
+    // Verifies that clicking Edit on a connected connection opens
+    // the settings panel and fetches workflow states from the API.
     render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
     await waitFor(() => {
-      expect(screen.getByText("On session archive")).toBeInTheDocument();
+      expect(mockApi.getLinearStates).toHaveBeenCalledWith("conn-1");
+    });
+    expect(screen.getByText("Auto-transition")).toBeInTheDocument();
+    expect(screen.getByText("On session archive")).toBeInTheDocument();
+  });
+
+  it("toggles Edit to Close and back", async () => {
+    // Verifies that clicking Edit toggles the panel open/close.
+    render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    // Open
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(await screen.findByText("Auto-transition")).toBeInTheDocument();
+
+    // Close
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByText("Auto-transition")).toBeNull();
+  });
+
+  it("enables auto-transition toggle and shows state selector", async () => {
+    // Verifies that enabling the auto-transition toggle reveals the
+    // target status selector with workflow states.
+    render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await waitFor(() => {
+      expect(screen.getByText("Auto-transition")).toBeInTheDocument();
+    });
+
+    // Find auto-transition switch (first one)
+    const switches = screen.getAllByRole("switch");
+    fireEvent.click(switches[0]);
+
+    // Should now show the Target status selector
+    await waitFor(() => {
+      expect(screen.getAllByText("Target status").length).toBeGreaterThan(0);
     });
   });
 
-  it("toggle enables the archive transition state selector", async () => {
-    // Verifies that clicking the toggle shows the target status selector.
+  it("enables archive-transition toggle", async () => {
+    // Verifies that the archive transition toggle reveals the target status.
     render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     await waitFor(() => {
       expect(screen.getByText("On session archive")).toBeInTheDocument();
     });
 
-    // The archive transition toggle should show "Disabled" initially
-    const archiveSection = screen.getByText("On session archive").closest("div");
-    expect(archiveSection).toBeTruthy();
-
-    // Find the toggle button in the archive section (second switch on the page)
+    // The archive switch is the second switch
     const switches = screen.getAllByRole("switch");
-    // The first switch is auto-transition, the second is archive transition
-    const archiveSwitch = switches[switches.length - 1];
-    fireEvent.click(archiveSwitch);
+    fireEvent.click(switches[1]);
 
-    // After enabling, the state selector should appear
     await waitFor(() => {
-      expect(screen.getByLabelText("Target status")).toBeInTheDocument();
+      expect(screen.getAllByText("Target status").length).toBeGreaterThan(0);
     });
   });
 
-  it("saves archive transition settings", async () => {
-    // Verifies that saving archive transition settings calls updateSettings
-    // with the correct fields.
+  it("saves connection settings via updateLinearConnection", async () => {
+    // Verifies that clicking Save Settings calls updateLinearConnection
+    // with the correct auto-transition and archive-transition fields.
     render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     await waitFor(() => {
-      expect(screen.getByText("On session archive")).toBeInTheDocument();
+      expect(screen.getByText("Auto-transition")).toBeInTheDocument();
     });
 
-    // Enable the toggle
+    // Enable auto-transition
     const switches = screen.getAllByRole("switch");
-    const archiveSwitch = switches[switches.length - 1];
-    fireEvent.click(archiveSwitch);
+    fireEvent.click(switches[0]);
 
-    // Wait for state selector
-    await waitFor(() => {
-      expect(screen.getByLabelText("Target status")).toBeInTheDocument();
-    });
-
-    // Note: We can't test the exact label match since there are multiple "Target status"
-    // labels on the page. Instead, find by id.
-    const stateSelect = document.getElementById("archive-transition-state") as HTMLSelectElement;
-    expect(stateSelect).toBeTruthy();
-    fireEvent.change(stateSelect, { target: { value: "s-backlog" } });
-
-    // Click the last Save button (for archive transition section)
-    const saveButtons = screen.getAllByRole("button", { name: "Save" });
-    const lastSaveBtn = saveButtons[saveButtons.length - 1];
-    fireEvent.click(lastSaveBtn);
+    // Click Save Settings
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
 
     await waitFor(() => {
-      expect(mockApi.updateSettings).toHaveBeenCalledWith({
-        linearArchiveTransition: true,
-        linearArchiveTransitionStateId: "s-backlog",
-        linearArchiveTransitionStateName: "Backlog",
+      expect(mockApi.updateLinearConnection).toHaveBeenCalledWith("conn-1", {
+        autoTransition: true,
+        autoTransitionStateId: "",
+        autoTransitionStateName: "",
+        archiveTransition: false,
+        archiveTransitionStateId: "",
+        archiveTransitionStateName: "",
       });
     });
   });
+
+  it("disables Edit button for unconnected connections", async () => {
+    // Verifies that the Edit button is disabled when the connection
+    // is not verified (connected=false).
+    mockApi.listLinearConnections.mockResolvedValue({
+      connections: [{ ...defaultConnection, connected: false }],
+    });
+    render(<LinearSettingsPage />);
+    await screen.findByText("Work");
+
+    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+  });
 });
+
+// =============================================================================
+// OAuth Agent App section
+// =============================================================================
 
 describe("LinearSettingsPage — OAuth Agent App section", () => {
   it("renders the Linear Agent App section", async () => {
@@ -283,17 +456,6 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
       hasWebhookSecret: true,
       hasAccessToken: true,
     });
-    mockApi.getSettings.mockResolvedValue({
-      anthropicApiKeyConfigured: false,
-      anthropicModel: "claude-sonnet-4.6",
-      linearApiKeyConfigured: true,
-      linearAutoTransition: false,
-      linearAutoTransitionStateName: "",
-      linearArchiveTransition: false,
-      linearArchiveTransitionStateName: "",
-      linearOAuthConfigured: true,
-      linearOAuthCredentialsSaved: true,
-    });
 
     render(<LinearSettingsPage />);
 
@@ -309,17 +471,6 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
       hasClientSecret: true,
       hasWebhookSecret: false,
       hasAccessToken: false,
-    });
-    mockApi.getSettings.mockResolvedValue({
-      anthropicApiKeyConfigured: false,
-      anthropicModel: "claude-sonnet-4.6",
-      linearApiKeyConfigured: true,
-      linearAutoTransition: false,
-      linearAutoTransitionStateName: "",
-      linearArchiveTransition: false,
-      linearArchiveTransitionStateName: "",
-      linearOAuthConfigured: true,
-      linearOAuthCredentialsSaved: true,
     });
     mockApi.getLinearOAuthAuthorizeUrl.mockResolvedValue({
       url: "https://linear.app/oauth/authorize?client_id=test",
@@ -359,27 +510,14 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
       hasWebhookSecret: true,
       hasAccessToken: true,
     });
-    mockApi.getSettings.mockResolvedValue({
-      anthropicApiKeyConfigured: false,
-      anthropicModel: "claude-sonnet-4.6",
-      linearApiKeyConfigured: true,
-      linearAutoTransition: false,
-      linearAutoTransitionStateName: "",
-      linearArchiveTransition: false,
-      linearArchiveTransitionStateName: "",
-      linearOAuthConfigured: true,
-      linearOAuthCredentialsSaved: true,
-    });
 
     render(<LinearSettingsPage />);
 
     // Wait for the OAuth connected status text (unique to the OAuth section)
     await screen.findByText(/agents with the Linear trigger/i);
 
-    // Find and click the OAuth Disconnect button (not the API key Disconnect)
-    // The OAuth Disconnect button appears inside the Linear Agent App section
+    // Find and click the OAuth Disconnect button
     const disconnectButtons = screen.getAllByRole("button", { name: "Disconnect" });
-    // The OAuth disconnect is the last one (after the API key disconnect)
     fireEvent.click(disconnectButtons[disconnectButtons.length - 1]);
 
     await waitFor(() => {
@@ -413,17 +551,6 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
       hasClientSecret: true,
       hasWebhookSecret: false,
       hasAccessToken: false,
-    });
-    mockApi.getSettings.mockResolvedValue({
-      anthropicApiKeyConfigured: false,
-      anthropicModel: "claude-sonnet-4.6",
-      linearApiKeyConfigured: true,
-      linearAutoTransition: false,
-      linearAutoTransitionStateName: "",
-      linearArchiveTransition: false,
-      linearArchiveTransitionStateName: "",
-      linearOAuthConfigured: true,
-      linearOAuthCredentialsSaved: true,
     });
 
     render(<LinearSettingsPage />);
@@ -468,17 +595,6 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
       hasWebhookSecret: false,
       hasAccessToken: false,
     });
-    mockApi.getSettings.mockResolvedValue({
-      anthropicApiKeyConfigured: false,
-      anthropicModel: "claude-sonnet-4.6",
-      linearApiKeyConfigured: true,
-      linearAutoTransition: false,
-      linearAutoTransitionStateName: "",
-      linearArchiveTransition: false,
-      linearArchiveTransitionStateName: "",
-      linearOAuthConfigured: true,
-      linearOAuthCredentialsSaved: true,
-    });
     mockApi.getLinearOAuthAuthorizeUrl.mockRejectedValueOnce(new Error("Not configured"));
 
     render(<LinearSettingsPage />);
@@ -497,8 +613,6 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
   it("handles OAuth success callback from URL hash", async () => {
     // Verifies that when the URL hash contains oauth_success=true (from
     // the OAuth redirect callback), the component shows the success state.
-    // Mock getLinearOAuthStatus to also return hasAccessToken=true so the
-    // success message shows "Agent app connected successfully!".
     mockApi.getLinearOAuthStatus.mockResolvedValue({
       configured: true, hasClientId: true, hasClientSecret: true,
       hasWebhookSecret: true, hasAccessToken: true,
@@ -531,15 +645,6 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
   it("refreshes configured state after saving credentials", async () => {
     // After saving credentials, the UI should refresh OAuth status so
     // placeholders show "Configured" instead of the initial empty state.
-    mockApi.updateSettings.mockResolvedValue({
-      anthropicApiKeyConfigured: false,
-      anthropicModel: "claude-sonnet-4.6",
-      linearApiKeyConfigured: true,
-      linearAutoTransition: false,
-      linearAutoTransitionStateName: "",
-      linearArchiveTransition: false,
-      linearArchiveTransitionStateName: "",
-    });
     mockApi.getLinearOAuthStatus
       .mockResolvedValueOnce({ configured: false, hasClientId: false, hasClientSecret: false, hasWebhookSecret: false, hasAccessToken: false })
       .mockResolvedValueOnce({ configured: false, hasClientId: true, hasClientSecret: true, hasWebhookSecret: true, hasAccessToken: false });
@@ -563,11 +668,10 @@ describe("LinearSettingsPage — OAuth Agent App section", () => {
   it("disables Install to Workspace when credentials are not persisted on server", async () => {
     // Verifies that typing a Client ID locally does NOT enable Install —
     // only server-side oauthConfigured makes the button clickable.
-    // This prevents confusing 400 errors when the user hasn't saved yet.
     render(<LinearSettingsPage />);
     await screen.findByText("Linear Agent App");
 
-    // Type a client ID locally — but settings.linearOAuthConfigured is false
+    // Type a client ID locally — but oauthConfigured is false from the API
     fireEvent.change(screen.getByLabelText("Client ID"), {
       target: { value: "my-client-id" },
     });

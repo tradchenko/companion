@@ -3,6 +3,7 @@ import { getSettings } from "../settings-manager.js";
 import { linearCache } from "../linear-cache.js";
 import * as sessionLinearIssues from "../session-linear-issues.js";
 import * as linearProjectManager from "../linear-project-manager.js";
+import { resolveApiKey, getConnection } from "../linear-connections.js";
 
 function linearIssueStateCategory(issue: { stateType?: string; stateName?: string }): 0 | 1 | 2 {
   const stateType = (issue.stateType || "").trim().toLowerCase();
@@ -107,9 +108,10 @@ export interface LinearTeam {
  * Fetch all Linear team workflow states (cached for 5 minutes).
  * Returns empty array on error.
  */
-export async function fetchLinearTeamStates(linearApiKey: string): Promise<LinearTeam[]> {
+export async function fetchLinearTeamStates(linearApiKey: string, cachePrefix?: string): Promise<LinearTeam[]> {
   try {
-    return await linearCache.getOrFetch("states", 300_000, async () => {
+    const cacheKey = cachePrefix ? `${cachePrefix}:states` : "states";
+    return await linearCache.getOrFetch(cacheKey, 300_000, async () => {
       const response = await fetch("https://api.linear.app/graphql", {
         method: "POST",
         headers: {
@@ -186,14 +188,15 @@ export function registerLinearRoutes(api: Hono): void {
     const limit = Math.min(20, Math.max(1, Number.isFinite(limitRaw) ? Math.floor(limitRaw) : 8));
     if (!query) return c.json({ issues: [] });
 
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const connectionId = c.req.query("connectionId") || undefined;
+    const resolved = resolveApiKey(connectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey, connectionId: resolvedId } = resolved;
 
     try {
-      const cacheKey = `search:${query}:${limit}`;
+      const cacheKey = `${resolvedId}:search:${query}:${limit}`;
       const issues = await linearCache.getOrFetch(cacheKey, 30_000, async () => {
         const response = await fetch("https://api.linear.app/graphql", {
           method: "POST",
@@ -285,11 +288,12 @@ export function registerLinearRoutes(api: Hono): void {
       return c.json({ error: "teamId is required" }, 400);
     }
 
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const connectionId = typeof body.connectionId === "string" ? body.connectionId : undefined;
+    const resolved = resolveApiKey(connectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey } = resolved;
 
     try {
       const input: Record<string, unknown> = {
@@ -407,14 +411,15 @@ export function registerLinearRoutes(api: Hono): void {
   });
 
   api.get("/linear/connection", async (c) => {
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const connectionId = c.req.query("connectionId") || undefined;
+    const resolved = resolveApiKey(connectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey, connectionId: resolvedId } = resolved;
 
     try {
-      const result = await linearCache.getOrFetch("connection", 300_000, async () => {
+      const result = await linearCache.getOrFetch(`${resolvedId}:connection`, 300_000, async () => {
         const response = await fetch("https://api.linear.app/graphql", {
           method: "POST",
           headers: {
@@ -486,6 +491,7 @@ export function registerLinearRoutes(api: Hono): void {
       teamId: String(body.teamId || ""),
       assigneeName: body.assigneeName ? String(body.assigneeName) : undefined,
       updatedAt: body.updatedAt ? String(body.updatedAt) : undefined,
+      connectionId: body.connectionId ? String(body.connectionId) : undefined,
     });
     return c.json({ ok: true });
   });
@@ -498,10 +504,10 @@ export function registerLinearRoutes(api: Hono): void {
     const refresh = c.req.query("refresh") === "true";
     if (!refresh) return c.json({ issue: stored });
 
-    // Fetch fresh data from Linear API
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) return c.json({ issue: stored });
+    // Fetch fresh data from Linear API using the stored connection
+    const resolved = resolveApiKey(stored.connectionId);
+    if (!resolved) return c.json({ issue: stored });
+    const { apiKey: linearApiKey, connectionId: resolvedId } = resolved;
 
     try {
       const cacheKey = `issue:${stored.id}`;
@@ -620,11 +626,12 @@ export function registerLinearRoutes(api: Hono): void {
       return c.json({ error: "body is required" }, 400);
     }
 
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const connectionId = typeof body.connectionId === "string" ? body.connectionId : undefined;
+    const resolved = resolveApiKey(connectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey } = resolved;
 
     const response = await fetch("https://api.linear.app/graphql", {
       method: "POST",
@@ -688,14 +695,15 @@ export function registerLinearRoutes(api: Hono): void {
   });
 
   api.get("/linear/states", async (c) => {
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const connectionId = c.req.query("connectionId") || undefined;
+    const resolved = resolveApiKey(connectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey, connectionId: resolvedId } = resolved;
 
     try {
-      const teams = await fetchLinearTeamStates(linearApiKey);
+      const teams = await fetchLinearTeamStates(linearApiKey, resolvedId);
       if (teams.length === 0) {
         return c.json({ error: "Failed to fetch Linear workflow states" }, 502);
       }
@@ -708,14 +716,15 @@ export function registerLinearRoutes(api: Hono): void {
   // ─── Linear projects ────────────────────────────────────────────────
 
   api.get("/linear/projects", async (c) => {
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const connectionId = c.req.query("connectionId") || undefined;
+    const resolved = resolveApiKey(connectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey, connectionId: resolvedId } = resolved;
 
     try {
-      const projects = await linearCache.getOrFetch("projects", 300_000, async () => {
+      const projects = await linearCache.getOrFetch(`${resolvedId}:projects`, 300_000, async () => {
         const response = await fetch("https://api.linear.app/graphql", {
           method: "POST",
           headers: {
@@ -768,14 +777,15 @@ export function registerLinearRoutes(api: Hono): void {
     const limit = Math.min(50, Math.max(1, Number.isFinite(limitRaw) ? Math.floor(limitRaw) : 15));
     if (!projectId) return c.json({ error: "projectId is required" }, 400);
 
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const connectionId = c.req.query("connectionId") || undefined;
+    const resolved = resolveApiKey(connectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey, connectionId: resolvedId } = resolved;
 
     try {
-      const cacheKey = `project-issues:${projectId}:${limit}`;
+      const cacheKey = `${resolvedId}:project-issues:${projectId}:${limit}`;
       const issues = await linearCache.getOrFetch(cacheKey, 60_000, async () => {
         const response = await fetch("https://api.linear.app/graphql", {
           method: "POST",
@@ -905,17 +915,23 @@ export function registerLinearRoutes(api: Hono): void {
       return c.json({ error: "Issue ID is required" }, 400);
     }
 
-    const settings = getSettings();
-    const linearApiKey = settings.linearApiKey.trim();
-    if (!linearApiKey) {
-      return c.json({ error: "Linear API key is not configured" }, 400);
+    const reqConnectionId = c.req.query("connectionId") || undefined;
+    const resolved = resolveApiKey(reqConnectionId);
+    if (!resolved) {
+      return c.json({ error: "No Linear connection configured" }, 400);
     }
+    const { apiKey: linearApiKey, connectionId: resolvedConnId } = resolved;
 
-    if (!settings.linearAutoTransition) {
+    // Check auto-transition setting: prefer connection-level, fall back to global settings
+    const conn = resolvedConnId !== "legacy" ? getConnection(resolvedConnId) : null;
+    const autoTransitionEnabled = conn ? conn.autoTransition : getSettings().linearAutoTransition;
+    const autoTransitionStateId = conn ? conn.autoTransitionStateId : getSettings().linearAutoTransitionStateId;
+
+    if (!autoTransitionEnabled) {
       return c.json({ ok: true, skipped: true, reason: "auto_transition_disabled" });
     }
 
-    const stateId = settings.linearAutoTransitionStateId.trim();
+    const stateId = autoTransitionStateId.trim();
     if (!stateId) {
       return c.json({ ok: true, skipped: true, reason: "no_target_state_configured" });
     }
