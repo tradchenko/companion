@@ -100,7 +100,7 @@ function buildStoreMock(overrides: Record<string, unknown> = {}) {
 }
 
 /** Opens the Advanced panel by clicking the "Advanced" toggle button. */
-async function openAdvancedPanel() {
+function openAdvancedPanel() {
   const advancedBtn = screen.getByRole("button", { name: /^Advanced$/i });
   fireEvent.click(advancedBtn);
 }

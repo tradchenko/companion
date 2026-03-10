@@ -1010,7 +1010,11 @@ export function HomePage() {
           {/* Advanced toggle */}
           <button
             type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
+            onClick={() => setShowAdvanced((v) => {
+              // Reset branching controls when collapsing the Advanced panel
+              if (v) setShowBranchingControls(false);
+              return !v;
+            })}
             className={`flex items-center gap-1.5 px-2.5 py-2 text-xs rounded-md transition-colors cursor-pointer ${
               showAdvanced
                 ? "text-cc-primary bg-cc-primary/10 hover:bg-cc-primary/15"
