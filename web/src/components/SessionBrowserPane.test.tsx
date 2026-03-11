@@ -4,10 +4,10 @@
  *
  * Validates:
  * - Loading state while display stack starts
- * - Error state for non-container sessions
- * - Error state when API returns unavailable
- * - Successful iframe rendering when API returns a URL
- * - URL navigation via input + Enter key
+ * - Host mode: toolbar shown immediately, proxy URL navigation
+ * - Container mode: noVNC iframe, xdotool navigation
+ * - Error states (API unavailable, network error)
+ * - Auth token injection for remote WS connections
  * - Reload button refreshes the iframe
  * - Accessibility (axe scan)
  */
@@ -25,44 +25,115 @@ vi.mock("../api.js", () => ({
   },
 }));
 
-interface MockSdkSession {
-  sessionId: string;
-  containerId?: string;
-}
-
-let mockSdkSessions: MockSdkSession[] = [];
-
-vi.mock("../store.js", () => ({
-  useStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector({
-      sdkSessions: mockSdkSessions,
-    }),
-}));
-
 import { SessionBrowserPane } from "./SessionBrowserPane.js";
 
 beforeEach(() => {
-  mockSdkSessions = [
-    { sessionId: "s1", containerId: "cid-1" },
-  ];
   mockStartBrowser.mockReset();
   mockNavigateBrowser.mockReset();
 });
 
 describe("SessionBrowserPane", () => {
   // ─── Render / loading state ───────────────────────────────────────────
-  it("shows loading state initially for container sessions", () => {
+  it("shows loading state initially", () => {
     // startBrowser never resolves so loading spinner stays visible
     mockStartBrowser.mockReturnValue(new Promise(() => {}));
     render(<SessionBrowserPane sessionId="s1" />);
     expect(screen.getByText("Starting browser preview...")).toBeInTheDocument();
   });
 
-  // ─── Non-container session error ──────────────────────────────────────
-  it("shows error message for non-container sessions", () => {
-    mockSdkSessions = [{ sessionId: "s1" }]; // no containerId
+  // ─── Host mode ──────────────────────────────────────────────────────
+  it("shows toolbar with placeholder text in host mode", async () => {
+    // Server returns host mode — no VNC, just proxy-based iframe
+    mockStartBrowser.mockResolvedValue({
+      available: true,
+      mode: "host",
+    });
     render(<SessionBrowserPane sessionId="s1" />);
-    expect(screen.getByText("Browser preview is only available for containerized sessions.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Enter a URL and click Go to preview.")).toBeInTheDocument();
+    });
+    // Toolbar elements should be present
+    expect(screen.getByLabelText("Navigate URL")).toBeInTheDocument();
+    expect(screen.getByText("Go")).toBeInTheDocument();
+    expect(screen.getByLabelText("Reload browser")).toBeInTheDocument();
+  });
+
+  it("constructs proxy URL when navigating in host mode", async () => {
+    // Host mode: frontend builds /api/sessions/:id/browser/host-proxy/:port/path
+    mockStartBrowser.mockResolvedValue({
+      available: true,
+      mode: "host",
+    });
+    render(<SessionBrowserPane sessionId="s1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Enter a URL and click Go to preview.")).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText("Navigate URL");
+    fireEvent.change(input, { target: { value: "http://localhost:8080/dashboard" } });
+    fireEvent.click(screen.getByText("Go"));
+
+    // Should render iframe with proxy URL — no backend navigateBrowser call
+    await waitFor(() => {
+      const iframe = screen.getByTitle("Browser preview");
+      expect(iframe).toBeInTheDocument();
+      expect(iframe).toHaveAttribute("src", "/api/sessions/s1/browser/host-proxy/8080/dashboard");
+    });
+    expect(mockNavigateBrowser).not.toHaveBeenCalled();
+  });
+
+  it("uses default port 80 for http URLs without explicit port", async () => {
+    mockStartBrowser.mockResolvedValue({
+      available: true,
+      mode: "host",
+    });
+    render(<SessionBrowserPane sessionId="s1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Enter a URL and click Go to preview.")).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText("Navigate URL");
+    fireEvent.change(input, { target: { value: "http://example.com/path" } });
+    fireEvent.click(screen.getByText("Go"));
+
+    await waitFor(() => {
+      const iframe = screen.getByTitle("Browser preview");
+      expect(iframe).toHaveAttribute("src", "/api/sessions/s1/browser/host-proxy/80/path");
+    });
+  });
+
+  it("shows error for invalid URL in host mode", async () => {
+    mockStartBrowser.mockResolvedValue({
+      available: true,
+      mode: "host",
+    });
+    render(<SessionBrowserPane sessionId="s1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Enter a URL and click Go to preview.")).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText("Navigate URL");
+    fireEvent.change(input, { target: { value: "not-a-url" } });
+    fireEvent.click(screen.getByText("Go"));
+
+    expect(screen.getByText("Invalid URL")).toBeInTheDocument();
+  });
+
+  it("rejects non-http URL schemes in host mode", async () => {
+    mockStartBrowser.mockResolvedValue({
+      available: true,
+      mode: "host",
+    });
+    render(<SessionBrowserPane sessionId="s1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Enter a URL and click Go to preview.")).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText("Navigate URL");
+    fireEvent.change(input, { target: { value: "ftp://files.example.com" } });
+    fireEvent.click(screen.getByText("Go"));
+
+    expect(screen.getByText("Only http:// and https:// URLs are supported")).toBeInTheDocument();
   });
 
   // ─── API returns unavailable ──────────────────────────────────────────
@@ -87,8 +158,8 @@ describe("SessionBrowserPane", () => {
     });
   });
 
-  // ─── Successful iframe rendering ──────────────────────────────────────
-  it("renders iframe when API returns a URL", async () => {
+  // ─── Successful container iframe rendering ────────────────────────────
+  it("renders iframe when API returns a container URL", async () => {
     mockStartBrowser.mockResolvedValue({
       available: true,
       mode: "container",
@@ -121,8 +192,8 @@ describe("SessionBrowserPane", () => {
     localStorage.removeItem("companion_auth_token");
   });
 
-  // ─── Navigation ───────────────────────────────────────────────────────
-  it("calls navigateBrowser when pressing Enter in the URL input", async () => {
+  // ─── Container navigation ────────────────────────────────────────────
+  it("calls navigateBrowser when pressing Enter in container mode", async () => {
     mockStartBrowser.mockResolvedValue({
       available: true,
       mode: "container",
@@ -142,7 +213,7 @@ describe("SessionBrowserPane", () => {
     expect(mockNavigateBrowser).toHaveBeenCalledWith("s1", "http://localhost:8080");
   });
 
-  it("calls navigateBrowser when clicking Go button", async () => {
+  it("calls navigateBrowser when clicking Go in container mode", async () => {
     mockStartBrowser.mockResolvedValue({
       available: true,
       mode: "container",
@@ -163,7 +234,7 @@ describe("SessionBrowserPane", () => {
   });
 
   // ─── Navigation error feedback ────────────────────────────────────────
-  it("shows error banner when navigation fails", async () => {
+  it("shows error banner when container navigation fails", async () => {
     mockStartBrowser.mockResolvedValue({
       available: true,
       mode: "container",
@@ -221,7 +292,7 @@ describe("SessionBrowserPane", () => {
     expect(results).toHaveNoViolations();
   });
 
-  it("passes accessibility scan (active state with toolbar)", async () => {
+  it("passes accessibility scan (container active state with toolbar)", async () => {
     mockStartBrowser.mockResolvedValue({
       available: true,
       mode: "container",
@@ -241,10 +312,32 @@ describe("SessionBrowserPane", () => {
     expect(results).toHaveNoViolations();
   });
 
-  it("passes accessibility scan (error state)", async () => {
-    mockSdkSessions = [{ sessionId: "s1" }]; // non-container
+  it("passes accessibility scan (host mode with placeholder)", async () => {
+    // Host mode shows toolbar + placeholder text (no iframe yet)
+    mockStartBrowser.mockResolvedValue({
+      available: true,
+      mode: "host",
+    });
     const { axe } = await import("vitest-axe");
     const { container } = render(<SessionBrowserPane sessionId="s1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Enter a URL and click Go to preview.")).toBeInTheDocument();
+    });
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
+  it("passes accessibility scan (error state)", async () => {
+    mockStartBrowser.mockResolvedValue({
+      available: false,
+      mode: "container",
+      message: "Xvfb not installed",
+    });
+    const { axe } = await import("vitest-axe");
+    const { container } = render(<SessionBrowserPane sessionId="s1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Xvfb not installed")).toBeInTheDocument();
+    });
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

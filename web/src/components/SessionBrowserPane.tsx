@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
-import { useStore } from "../store.js";
 
 interface SessionBrowserPaneProps {
   sessionId: string;
@@ -9,33 +8,27 @@ interface SessionBrowserPaneProps {
 export function SessionBrowserPane({ sessionId }: SessionBrowserPaneProps) {
   const [loading, setLoading] = useState(true);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
+  const [browserMode, setBrowserMode] = useState<"host" | "container" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [navUrl, setNavUrl] = useState("http://localhost:3000");
   const [navError, setNavError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const sdkSession = useStore((s) =>
-    s.sdkSessions.find((sdk) => sdk.sessionId === sessionId),
-  );
-
-  const isContainerSession = !!sdkSession?.containerId;
-
-  // Start the display stack and get the proxied noVNC URL
+  // Call browser/start to determine mode and (for container sessions) start the display stack
   useEffect(() => {
-    if (!isContainerSession) {
-      setError("Browser preview requires a containerized session.");
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setBrowserMode(null);
 
     api.startBrowser(sessionId).then((result) => {
       if (cancelled) return;
-      if (result.available && result.url) {
-        // Inject auth token into the noVNC WebSocket path so it works on remote servers
+      if (result.mode === "host") {
+        // Host mode — no VNC, just proxy-based iframe
+        setBrowserMode("host");
+        setLoading(false);
+      } else if (result.available && result.url) {
+        // Container mode — inject auth token into noVNC WebSocket path
         const token = localStorage.getItem("companion_auth_token") || "";
         const url = new URL(result.url, window.location.origin);
         const wsPath = url.searchParams.get("path");
@@ -43,6 +36,7 @@ export function SessionBrowserPane({ sessionId }: SessionBrowserPaneProps) {
           url.searchParams.set("path", `${wsPath}?token=${encodeURIComponent(token)}`);
         }
         setBrowserUrl(url.pathname + url.search);
+        setBrowserMode("container");
       } else {
         setError(result.message || "Browser preview unavailable.");
       }
@@ -54,29 +48,40 @@ export function SessionBrowserPane({ sessionId }: SessionBrowserPaneProps) {
     });
 
     return () => { cancelled = true; };
-  }, [sessionId, isContainerSession]);
+  }, [sessionId]);
 
   const handleNavigate = useCallback(() => {
     if (!navUrl.trim()) return;
     setNavError(null);
-    api.navigateBrowser(sessionId, navUrl.trim()).catch((err) => {
-      setNavError(err instanceof Error ? err.message : "Navigation failed");
-    });
-  }, [sessionId, navUrl]);
+
+    if (browserMode === "host") {
+      // Host mode: construct proxy URL and set iframe src directly
+      try {
+        const parsed = new URL(navUrl.trim());
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          setNavError("Only http:// and https:// URLs are supported");
+          return;
+        }
+        const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+        const subPath = parsed.pathname.replace(/^\//, "") + parsed.search;
+        const proxyUrl = `/api/sessions/${encodeURIComponent(sessionId)}/browser/host-proxy/${port}/${subPath}`;
+        setBrowserUrl(proxyUrl);
+      } catch {
+        setNavError("Invalid URL");
+      }
+    } else {
+      // Container mode: navigate via xdotool
+      api.navigateBrowser(sessionId, navUrl.trim()).catch((err) => {
+        setNavError(err instanceof Error ? err.message : "Navigation failed");
+      });
+    }
+  }, [sessionId, navUrl, browserMode]);
 
   const handleReload = useCallback(() => {
     if (iframeRef.current && browserUrl) {
       iframeRef.current.src = browserUrl;
     }
   }, [browserUrl]);
-
-  if (!isContainerSession) {
-    return (
-      <div className="h-full flex items-center justify-center p-4 text-sm text-cc-muted">
-        Browser preview is only available for containerized sessions.
-      </div>
-    );
-  }
 
   if (loading) {
     return (
@@ -138,9 +143,9 @@ export function SessionBrowserPane({ sessionId }: SessionBrowserPaneProps) {
         </div>
       )}
 
-      {/* noVNC iframe */}
+      {/* Browser iframe */}
       <div className="flex-1 min-h-0">
-        {browserUrl && (
+        {browserUrl ? (
           <iframe
             ref={iframeRef}
             src={browserUrl}
@@ -148,7 +153,11 @@ export function SessionBrowserPane({ sessionId }: SessionBrowserPaneProps) {
             title="Browser preview"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
-        )}
+        ) : browserMode === "host" ? (
+          <div className="h-full flex items-center justify-center p-4 text-sm text-cc-muted">
+            Enter a URL and click Go to preview.
+          </div>
+        ) : null}
       </div>
     </div>
   );

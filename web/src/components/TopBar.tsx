@@ -79,9 +79,7 @@ export function TopBar() {
   const showWorkspaceControls = !!(currentSessionId && isSessionView);
   const showContextToggle = route.page === "session" && !!currentSessionId;
   const isContainerSession = !!(sdkSession?.containerId || bridgeSession?.is_containerized);
-  const workspaceTabs: WorkspaceTab[] = isContainerSession
-    ? ["chat", "diff", "terminal", "processes", "editor", "browser"]
-    : ["chat", "diff", "terminal", "processes", "editor"];
+  const workspaceTabs: WorkspaceTab[] = ["chat", "diff", "terminal", "processes", "editor", "browser"];
 
   const activateWorkspaceTab = (tab: WorkspaceTab) => {
     if (tab === "terminal") {
@@ -100,7 +98,6 @@ export function TopBar() {
     }
 
     if (tab === "browser") {
-      if (!isContainerSession) return;
       setActiveTab("browser");
       return;
     }
@@ -238,7 +235,6 @@ export function TopBar() {
               >
                 Editor
               </button>
-              {isContainerSession && (
               <button
                 onClick={() => activateWorkspaceTab("browser")}
                 className={`h-full px-3 text-[12px] font-medium transition-colors cursor-pointer flex items-center border-b-[1.5px] shrink-0 ${
@@ -251,7 +247,6 @@ export function TopBar() {
               >
                 Browser
               </button>
-              )}
           </div>
         )}
 

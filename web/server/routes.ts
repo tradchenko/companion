@@ -1094,9 +1094,8 @@ export function createRoutes(
 
     if (!session.containerId) {
       return c.json({
-        available: false,
+        available: true,
         mode: "host" as const,
-        message: "Browser preview requires a containerized session.",
       });
     }
 
@@ -1323,6 +1322,42 @@ export function createRoutes(
     }
   });
 
+
+  // HTTP proxy for host browser preview — proxies localhost requests through the companion's port
+  api.get("/sessions/:id/browser/host-proxy/:port/*", async (c) => {
+    const id = c.req.param("id");
+    const session = launcher.getSession(id);
+    if (!session) return c.json({ error: "Session not found" }, 404);
+
+    const portStr = c.req.param("port");
+    const port = parseInt(portStr, 10);
+    if (isNaN(port) || port < 1 || port > 65535) {
+      return c.json({ error: "Invalid port" }, 400);
+    }
+
+    // Reconstruct path from wildcard
+    const fullPath = c.req.path;
+    const proxyPrefix = `/api/sessions/${id}/browser/host-proxy/${port}/`;
+    const subPath = fullPath.startsWith(proxyPrefix) ? fullPath.slice(proxyPrefix.length) : "";
+    const queryString = new URL(c.req.url).search;
+
+    try {
+      const targetUrl = `http://127.0.0.1:${port}/${subPath}${queryString}`;
+      const upstream = await fetch(targetUrl, { redirect: "follow" });
+      const headers = new Headers();
+      const ct = upstream.headers.get("content-type");
+      if (ct) headers.set("Content-Type", ct);
+      const cl = upstream.headers.get("content-length");
+      if (cl) headers.set("Content-Length", cl);
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return c.json({ error: `Proxy failed: ${message}` }, 502);
+    }
+  });
   api.patch("/sessions/:id/name", async (c) => {
     const id = c.req.param("id");
     const body = await c.req.json().catch(() => ({}));
