@@ -11,7 +11,7 @@
  * - Reload button refreshes the iframe
  * - Accessibility (axe scan)
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
@@ -30,6 +30,13 @@ import { SessionBrowserPane } from "./SessionBrowserPane.js";
 beforeEach(() => {
   mockStartBrowser.mockReset();
   mockNavigateBrowser.mockReset();
+});
+
+afterEach(() => {
+  // Clean up localStorage to prevent test leaks (e.g. companion_auth_token
+  // set during auth token injection tests). Using afterEach ensures cleanup
+  // runs even if an assertion throws.
+  localStorage.removeItem("companion_auth_token");
 });
 
 describe("SessionBrowserPane", () => {
@@ -211,7 +218,6 @@ describe("SessionBrowserPane", () => {
       // The path parameter should now include the token so noVNC forwards it on WS connect
       expect(iframe.getAttribute("src")).toContain("path=ws%2Fnovnc%2Fs1%3Ftoken%3Dtest-secret-token");
     });
-    localStorage.removeItem("companion_auth_token");
   });
 
   // ─── Container navigation ────────────────────────────────────────────

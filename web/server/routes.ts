@@ -682,7 +682,7 @@ export function createRoutes(
               : []);
           const containerPorts: (number | { port: number; hostIp?: string })[] = [
             ...Array.from(new Set([
-              ...requestedPorts,
+              ...requestedPorts.filter((p: number) => p !== NOVNC_CONTAINER_PORT),
               VSCODE_EDITOR_CONTAINER_PORT,
               ...(backend === "codex" ? [CODEX_APP_SERVER_CONTAINER_PORT] : []),
             ])),
@@ -1302,6 +1302,12 @@ export function createRoutes(
     const fullPath = c.req.path;
     const proxyPrefix = `/api/sessions/${id}/browser/proxy/`;
     const subPath = fullPath.startsWith(proxyPrefix) ? fullPath.slice(proxyPrefix.length) : "";
+
+    // Block path traversal (defense-in-depth)
+    if (subPath.includes("..")) {
+      return c.json({ error: "Invalid path" }, 400);
+    }
+
     const queryString = new URL(c.req.url).search;
 
     try {
@@ -1316,9 +1322,8 @@ export function createRoutes(
         status: upstream.status,
         headers,
       });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      return c.json({ error: `Proxy failed: ${message}` }, 502);
+    } catch {
+      return c.json({ error: "Proxy failed: upstream unreachable" }, 502);
     }
   });
 

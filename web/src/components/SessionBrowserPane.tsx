@@ -151,7 +151,7 @@ export function SessionBrowserPane({ sessionId }: SessionBrowserPaneProps) {
             src={browserUrl}
             className="w-full h-full border-0"
             title="Browser preview"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            sandbox="allow-scripts allow-forms allow-popups"
           />
         ) : browserMode === "host" ? (
           <div className="h-full flex items-center justify-center p-4 text-sm text-cc-muted">
