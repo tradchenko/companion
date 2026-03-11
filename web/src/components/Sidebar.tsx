@@ -348,32 +348,30 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Action buttons: New Session + Settings */}
-      <div className="px-3 pb-2">
-        <div className="flex gap-2">
-          <button
-            onClick={handleNewSession}
-            title="New Session"
-            aria-label="New Session"
-            className="hidden md:flex flex-1 h-8 rounded-lg items-center justify-center gap-1.5 px-2.5 text-[12px] text-cc-muted hover:text-cc-fg hover:bg-cc-hover transition-colors cursor-pointer border border-cc-border/40"
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
-              <path d="M8 3v10M3 8h10" />
-            </svg>
-            <span>New Session</span>
-          </button>
-          <button
-            onClick={() => { window.location.hash = "#/settings"; }}
-            title="Settings"
-            aria-label="Settings"
-            className="hidden md:flex flex-1 h-8 rounded-lg items-center justify-center gap-1.5 px-2.5 text-[12px] text-cc-muted hover:text-cc-fg hover:bg-cc-hover transition-colors cursor-pointer border border-cc-border/40"
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
-              <path fillRule="evenodd" clipRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.53 1.53 0 01-2.29.95c-1.35-.8-2.92.77-2.12 2.12.54.9.07 2.04-.95 2.29-1.56.38-1.56 2.6 0 2.98 1.02.25 1.49 1.39.95 2.29-.8 1.35.77 2.92 2.12 2.12.9-.54 2.04-.07 2.29.95.38 1.56 2.6 1.56 2.98 0 .25-1.02 1.39-1.49 2.29-.95 1.35.8 2.92-.77 2.12-2.12-.54-.9-.07-2.04.95-2.29 1.56-.38 1.56-2.6 0-2.98-1.02-.25-1.49-1.39-.95-2.29.8-1.35-.77-2.92-2.12-2.12-.9.54-2.04.07-2.29-.95zM10 13a3 3 0 100-6 3 3 0 000 6z" />
-            </svg>
-            <span>Settings</span>
-          </button>
-        </div>
+      {/* Nav items: New Session + Settings */}
+      <div className="px-2 pb-1.5">
+        <button
+          onClick={handleNewSession}
+          title="New Session"
+          aria-label="New Session"
+          className="hidden md:flex w-full h-7 rounded-md items-center gap-2 px-2 text-[13px] text-cc-muted hover:text-cc-fg hover:bg-cc-hover transition-colors cursor-pointer"
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+            <path d="M8 3v10M3 8h10" />
+          </svg>
+          <span>New Session</span>
+        </button>
+        <button
+          onClick={() => { window.location.hash = "#/settings"; }}
+          title="Settings"
+          aria-label="Settings"
+          className="hidden md:flex w-full h-7 rounded-md items-center gap-2 px-2 text-[13px] text-cc-muted hover:text-cc-fg hover:bg-cc-hover transition-colors cursor-pointer"
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+            <path fillRule="evenodd" clipRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.53 1.53 0 01-2.29.95c-1.35-.8-2.92.77-2.12 2.12.54.9.07 2.04-.95 2.29-1.56.38-1.56 2.6 0 2.98 1.02.25 1.49 1.39.95 2.29-.8 1.35.77 2.92 2.12 2.12.9-.54 2.04-.07 2.29.95.38 1.56 2.6 1.56 2.98 0 .25-1.02 1.39-1.49 2.29-.95 1.35.8 2.92-.77 2.12-2.12-.54-.9-.07-2.04.95-2.29 1.56-.38 1.56-2.6 0-2.98-1.02-.25-1.49-1.39-.95-2.29.8-1.35-.77-2.92-2.12-2.12-.9.54-2.04.07-2.29-.95zM10 13a3 3 0 100-6 3 3 0 000 6z" />
+          </svg>
+          <span>Settings</span>
+        </button>
       </div>
 
       {/* Container archive confirmation */}
