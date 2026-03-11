@@ -63,8 +63,8 @@ export function SessionBrowserPane({ sessionId }: SessionBrowserPaneProps) {
           return;
         }
         const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
-        const subPath = parsed.pathname.replace(/^\//, "") + parsed.search;
-        const proxyUrl = `/api/sessions/${encodeURIComponent(sessionId)}/browser/host-proxy/${port}/${subPath}`;
+        const subPath = parsed.pathname.replace(/^\//, "");
+        const proxyUrl = `/api/sessions/${encodeURIComponent(sessionId)}/browser/host-proxy/${port}/${subPath}${parsed.search}`;
         setBrowserUrl(proxyUrl);
       } catch {
         setNavError("Invalid URL");

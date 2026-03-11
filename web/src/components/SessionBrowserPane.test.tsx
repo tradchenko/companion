@@ -102,6 +102,28 @@ describe("SessionBrowserPane", () => {
     });
   });
 
+  it("preserves query string without doubling in host mode", async () => {
+    // Regression test: query string should appear once in the proxy URL, not twice
+    mockStartBrowser.mockResolvedValue({
+      available: true,
+      mode: "host",
+    });
+    render(<SessionBrowserPane sessionId="s1" />);
+    await waitFor(() => {
+      expect(screen.getByText("Enter a URL and click Go to preview.")).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText("Navigate URL");
+    fireEvent.change(input, { target: { value: "http://localhost:3000/api?q=hello" } });
+    fireEvent.click(screen.getByText("Go"));
+
+    await waitFor(() => {
+      const iframe = screen.getByTitle("Browser preview");
+      // Query string should be appended once, not embedded in the path
+      expect(iframe).toHaveAttribute("src", "/api/sessions/s1/browser/host-proxy/3000/api?q=hello");
+    });
+  });
+
   it("shows error for invalid URL in host mode", async () => {
     mockStartBrowser.mockResolvedValue({
       available: true,

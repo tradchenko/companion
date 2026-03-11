@@ -1323,42 +1323,61 @@ export function createRoutes(
   });
 
 
-  // HTTP proxy for host browser preview — proxies localhost requests through the companion's port
+  // HTTP proxy for host browser preview — proxies localhost requests through the companion’s port
+  const HOP_BY_HOP = new Set(["connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-connection", "te", "trailer"]);
   api.get("/sessions/:id/browser/host-proxy/:port/*", async (c) => {
     const id = c.req.param("id");
     const session = launcher.getSession(id);
     if (!session) return c.json({ error: "Session not found" }, 404);
 
     const portStr = c.req.param("port");
-    const port = parseInt(portStr, 10);
-    if (isNaN(port) || port < 1 || port > 65535) {
+    const portNum = parseInt(portStr, 10);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
       return c.json({ error: "Invalid port" }, 400);
     }
 
-    // Reconstruct path from wildcard
+    // Block proxying to the companion server itself (would bypass remote auth via localhost check)
+    const serverPort = port || (process.env.NODE_ENV === "production" ? 3456 : 3457);
+    if (portNum === serverPort) {
+      return c.json({ error: "Cannot proxy to the companion server" }, 400);
+    }
+
+    // Reconstruct path from wildcard — only take path, query comes separately
     const fullPath = c.req.path;
-    const proxyPrefix = `/api/sessions/${id}/browser/host-proxy/${port}/`;
+    const proxyPrefix = `/api/sessions/${id}/browser/host-proxy/${portNum}/`;
     const subPath = fullPath.startsWith(proxyPrefix) ? fullPath.slice(proxyPrefix.length) : "";
+
+    // Block path traversal (Hono decodes %2e%2e before c.req.path)
+    if (subPath.includes("..")) {
+      return c.json({ error: "Invalid path" }, 400);
+    }
+
     const queryString = new URL(c.req.url).search;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const targetUrl = `http://127.0.0.1:${port}/${subPath}${queryString}`;
-      const upstream = await fetch(targetUrl, { redirect: "follow" });
+      const targetUrl = `http://127.0.0.1:${portNum}/${subPath}${queryString}`;
+      const upstream = await fetch(targetUrl, { redirect: "follow", signal: controller.signal });
+      clearTimeout(timeout);
+      // Forward response headers, stripping hop-by-hop headers
       const headers = new Headers();
-      const ct = upstream.headers.get("content-type");
-      if (ct) headers.set("Content-Type", ct);
-      const cl = upstream.headers.get("content-length");
-      if (cl) headers.set("Content-Length", cl);
+      upstream.headers.forEach((value, key) => {
+        if (!HOP_BY_HOP.has(key.toLowerCase())) {
+          headers.set(key, value);
+        }
+      });
       return new Response(upstream.body, {
         status: upstream.status,
         headers,
       });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      return c.json({ error: `Proxy failed: ${message}` }, 502);
+    } catch {
+      clearTimeout(timeout);
+      return c.json({ error: "Proxy failed: upstream unreachable" }, 502);
     }
   });
-  api.patch("/sessions/:id/name", async (c) => {
+
+    api.patch("/sessions/:id/name", async (c) => {
     const id = c.req.param("id");
     const body = await c.req.json().catch(() => ({}));
     if (typeof body.name !== "string" || !body.name.trim()) {

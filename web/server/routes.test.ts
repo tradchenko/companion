@@ -5518,6 +5518,37 @@ describe("GET /api/sessions/:id/browser/host-proxy/:port/*", () => {
     expect(json.error).toContain("Invalid port");
   });
 
+  // Security: Hono's router resolves literal ".." and "%2e%2e" before matching,
+  // returning 404 automatically. Our handler adds a defense-in-depth check for
+  // real HTTP servers where encoded traversal may bypass router normalization.
+  it("Hono blocks path traversal at router level (returns 404 not route match)", async () => {
+    launcher.getSession.mockReturnValue({
+      sessionId: "s1",
+      state: "running",
+      cwd: "/repo",
+    });
+
+    // Both literal and encoded ".." are resolved by Hono's router before matching
+    const res = await app.request("/api/sessions/s1/browser/host-proxy/3000/%2e%2e/%2e%2e/etc/passwd");
+    expect(res.status).toBe(404);
+  });
+
+  // Security: block proxying to the companion server itself (would bypass remote auth)
+  it("rejects proxying to the companion server port", async () => {
+    launcher.getSession.mockReturnValue({
+      sessionId: "s1",
+      state: "running",
+      cwd: "/repo",
+    });
+
+    // Default dev port is 3457
+    const res = await app.request("/api/sessions/s1/browser/host-proxy/3457/api/sessions");
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain("Cannot proxy to the companion server");
+  });
+
   it("proxies request to localhost on the given port", async () => {
     launcher.getSession.mockReturnValue({
       sessionId: "s1",
@@ -5564,7 +5595,8 @@ describe("GET /api/sessions/:id/browser/host-proxy/:port/*", () => {
     fetchSpy.mockRestore();
   });
 
-  it("returns 502 when upstream is unreachable", async () => {
+  // Error message should be generic to avoid leaking internal network info
+  it("returns generic 502 when upstream is unreachable", async () => {
     launcher.getSession.mockReturnValue({
       sessionId: "s1",
       state: "running",
@@ -5578,7 +5610,8 @@ describe("GET /api/sessions/:id/browser/host-proxy/:port/*", () => {
 
     expect(res.status).toBe(502);
     const json = await res.json();
-    expect(json.error).toContain("Proxy failed");
+    // Should NOT leak the raw error message (e.g. "Connection refused 127.0.0.1:9999")
+    expect(json.error).toBe("Proxy failed: upstream unreachable");
     fetchSpy.mockRestore();
   });
 });
