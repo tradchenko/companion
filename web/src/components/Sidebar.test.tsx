@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { SessionState, SdkSessionInfo } from "../types.js";
 
@@ -439,35 +439,11 @@ describe("Sidebar", () => {
     expect(screen.queryByText("Dark mode")).not.toBeInTheDocument();
   });
 
-  it("navigates to environments page when Environments is clicked", () => {
-    // Navigation items are always visible at the bottom of the sidebar.
+  it("navigates to settings page when Settings button is clicked", () => {
+    // Settings button is in the sidebar header, next to New Session.
     render(<Sidebar />);
-    fireEvent.click(screen.getByText("Environments"));
-    expect(window.location.hash).toBe("#/environments");
-  });
-
-  it("navigates to settings page when Settings is clicked", () => {
-    render(<Sidebar />);
-    fireEvent.click(screen.getByText("Settings"));
+    fireEvent.click(screen.getByLabelText("Settings"));
     expect(window.location.hash).toBe("#/settings");
-  });
-
-  it("navigates to integrations page when Integrations is clicked", () => {
-    render(<Sidebar />);
-    fireEvent.click(screen.getByText("Integrations"));
-    expect(window.location.hash).toBe("#/integrations");
-  });
-
-  it("navigates to prompts page when Prompts is clicked", () => {
-    render(<Sidebar />);
-    fireEvent.click(screen.getByText("Prompts"));
-    expect(window.location.hash).toBe("#/prompts");
-  });
-
-  it("navigates to terminal page when Terminal is clicked", () => {
-    render(<Sidebar />);
-    fireEvent.click(screen.getByText("Terminal"));
-    expect(window.location.hash).toBe("#/terminal");
   });
 
   it("session name shows animate-name-appear class when recently renamed", () => {
@@ -753,16 +729,12 @@ describe("Sidebar", () => {
     expect(screen.queryByText("1h ago")).not.toBeInTheDocument();
   });
 
-  it("nav items are always visible at the bottom of the sidebar", () => {
-    // Navigation items are rendered directly in the sidebar (no dropdown needed).
-    render(<Sidebar />);
-    const pagesNav = screen.getByRole("navigation", { name: "Pages" });
-    expect(within(pagesNav).getByText("Environments")).toBeInTheDocument();
-    expect(within(pagesNav).getByText("Integrations")).toBeInTheDocument();
-    expect(within(pagesNav).getByText("Agents")).toBeInTheDocument();
-    expect(within(pagesNav).getByText("Prompts")).toBeInTheDocument();
-    expect(within(pagesNav).getByText("Terminal")).toBeInTheDocument();
-    expect(within(pagesNav).getByText("Settings")).toBeInTheDocument();
+  it("renders logo and brand name in header", () => {
+    // The sidebar header displays the Companion logo and brand name.
+    const { container } = render(<Sidebar />);
+    const logo = container.querySelector('img[src="/logo.svg"]');
+    expect(logo).toBeInTheDocument();
+    expect(screen.getByText("The Companion")).toBeInTheDocument();
   });
 
   it("compact nav does not render helper subtitle lines", () => {
@@ -1503,27 +1475,6 @@ describe("Sidebar", () => {
     expect(screen.getByText(/Agents \(1\)/)).toBeInTheDocument();
   });
 
-  // ─── Nav item: closeTerminal behavior ───────────────────────────────────────
-
-  it("clicking a non-terminal nav item calls closeTerminal", () => {
-    // Verifies that clicking any nav item except Terminal calls closeTerminal()
-    // to dismiss the terminal overlay.
-    render(<Sidebar />);
-    fireEvent.click(screen.getByText("Prompts"));
-    expect(mockState.closeTerminal).toHaveBeenCalled();
-  });
-
-  it("clicking Terminal nav item does NOT call closeTerminal", () => {
-    // Verifies that clicking the Terminal nav item does NOT call closeTerminal,
-    // since the terminal should remain open when navigating to it.
-    render(<Sidebar />);
-
-    // Reset mocks from initial poll
-    mockState.closeTerminal.mockClear();
-
-    fireEvent.click(screen.getByText("Terminal"));
-    expect(mockState.closeTerminal).not.toHaveBeenCalled();
-  });
 
   it("New Session button calls closeTerminal", () => {
     // Verifies that clicking the New Session button closes any open terminal.
@@ -1549,55 +1500,7 @@ describe("Sidebar", () => {
     expect(mockState.closeTerminal).toHaveBeenCalled();
   });
 
-  // ─── Nav item: active state ─────────────────────────────────────────────────
 
-  it("nav item shows active state when on its page", () => {
-    // Verifies that the nav button for the current page gets the
-    // bg-cc-active class to indicate the user is on that page.
-    window.location.hash = "#/settings";
-    render(<Sidebar />);
-
-    const pagesNav = screen.getByRole("navigation", { name: "Pages" });
-    const settingsBtn = within(pagesNav).getByText("Settings").closest("button");
-    expect(settingsBtn).toHaveClass("bg-cc-active");
-  });
-
-  it("integrations nav item shows active for both integrations and integration-linear pages", () => {
-    // Verifies that the Integrations nav button correctly uses activePages
-    // to highlight for sub-pages like integration-linear.
-    window.location.hash = "#/integrations";
-    render(<Sidebar />);
-
-    const pagesNav = screen.getByRole("navigation", { name: "Pages" });
-    const integrationsBtn = within(pagesNav).getByText("Integrations").closest("button");
-    expect(integrationsBtn).toHaveClass("bg-cc-active");
-  });
-
-  it("agents nav button is active on agent detail routes with aria-current", () => {
-    // Verifies active state and aria-current for nested agent pages.
-    window.location.hash = "#/agents/agent-123";
-    render(<Sidebar />);
-
-    const pagesNav = screen.getByRole("navigation", { name: "Pages" });
-    const agentsBtn = within(pagesNav).getByText("Agents").closest("button");
-    expect(agentsBtn).toHaveClass("bg-cc-active");
-    expect(agentsBtn).toHaveAttribute("aria-current", "page");
-  });
-
-  // ─── Sessions and nav coexist ───────────────────────────────────────────────
-
-  it("shows both sessions and nav items on the same page", () => {
-    // Sessions list and nav items are always both visible in the sidebar.
-    const sdk = makeSdkSession("s1", { model: "claude" });
-    mockState = createMockState({ sdkSessions: [sdk] });
-    render(<Sidebar />);
-
-    // Session is visible
-    expect(screen.getByText("claude")).toBeInTheDocument();
-    // Nav items are visible
-    const pagesNav = screen.getByRole("navigation", { name: "Pages" });
-    expect(within(pagesNav).getByText("Settings")).toBeInTheDocument();
-  });
 
   // ─── External links footer ────────────────────────────────────────────────
 
@@ -1637,18 +1540,11 @@ describe("Sidebar", () => {
 
   // ─── Logo source based on backend type ─────────────────────────────────────
 
-  it("sidebar header does not display a logo (simplified design)", () => {
-    // The logo was removed from the sidebar header in the UI redesign.
-    // The sidebar now shows "New Session" button instead.
-    const sdk = makeSdkSession("s1", { backendType: "codex" });
-    mockState = createMockState({
-      sdkSessions: [sdk],
-      currentSessionId: "s1",
-    });
-
+  it("sidebar header displays the Companion logo", () => {
+    // The sidebar header shows the Companion mascot logo.
     const { container } = render(<Sidebar />);
-    const logo = container.querySelector("img");
-    expect(logo).toBeNull();
+    const logo = container.querySelector('img[src="/logo.svg"]');
+    expect(logo).toBeInTheDocument();
   });
 
 
