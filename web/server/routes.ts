@@ -1152,7 +1152,7 @@ export function createRoutes(
         "  x11vnc -display :99 -forever -shared -nopw -rfbport 5900 -noxdamage -wait 20 &>/dev/null &",
         "  sleep 0.3",
         "  websockify --web /usr/share/novnc/ 6080 localhost:5900 &>/dev/null &",
-        "  sleep 0.5",
+        "  sleep 1.0",
         "fi",
       ].join("\n");
 
@@ -1196,9 +1196,9 @@ export function createRoutes(
         10_000,
       );
 
-      // Wait for noVNC to be ready (up to 5s)
+      // Wait for noVNC to be ready (up to 10s)
       let noVncReady = false;
-      for (let i = 0; i < 25; i++) {
+      for (let i = 0; i < 50; i++) {
         try {
           const res = await fetch(`http://127.0.0.1:${portMapping.hostPort}/`);
           if (res.ok || res.status === 200) {

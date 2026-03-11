@@ -5274,7 +5274,7 @@ describe("POST /api/sessions/:id/browser/start", () => {
     fetchSpy.mockRestore();
   });
 
-  it("returns unavailable when noVNC polling times out", { timeout: 15_000 }, async () => {
+  it("returns unavailable when noVNC polling times out", { timeout: 25_000 }, async () => {
     launcher.getSession.mockReturnValue({
       sessionId: "s1",
       state: "running",
