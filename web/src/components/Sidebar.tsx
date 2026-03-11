@@ -331,7 +331,7 @@ export function Sidebar() {
   return (
     <aside className="w-full md:w-[240px] h-full flex flex-col bg-cc-sidebar">
       {/* Header: logo + brand */}
-      <div className="px-3 pt-3 pb-1">
+      <div className="px-3 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <img src="/logo.svg" alt="" className="w-5 h-5" />
           <span className="text-[13px] font-semibold text-cc-fg">The Companion</span>
@@ -403,6 +403,11 @@ export function Sidebar() {
           </div>
         </div>
       )}
+
+      {/* Sessions label */}
+      <div className="px-4 pt-2 pb-1">
+        <span className="text-[11px] font-medium text-cc-muted uppercase tracking-wider">Sessions</span>
+      </div>
 
       {/* Session list */}
       <div className="flex-1 overflow-y-auto px-2.5 pb-2">
