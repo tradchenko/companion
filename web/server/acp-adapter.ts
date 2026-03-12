@@ -29,13 +29,13 @@ export interface IAcpTransport {
    /** Вызов RPC-метода с ожиданием ответа */
    call(method: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<unknown>;
    /** Отправка уведомления (без ожидания ответа) */
-   notify(method: string, params?: Record<string, unknown>): Promise<void>;
+   notify(method: string, params?: Record<string, unknown>): void;
    /** Ответ на входящий запрос по его id */
-   respond(id: number, result: unknown): Promise<void>;
+   respond(id: number | string, result: unknown): void;
    /** Обработчик входящих уведомлений от агента */
    onNotification(handler: (method: string, params: Record<string, unknown>) => void): void;
    /** Обработчик входящих запросов от агента */
-   onRequest(handler: (method: string, id: number, params: Record<string, unknown>) => void): void;
+   onRequest(handler: (method: string, id: number | string, params: Record<string, unknown>) => void): void;
    /** Коллбэк для записи сырых входящих сообщений */
    onRawIncoming(cb: (line: string) => void): void;
    /** Коллбэк для записи сырых исходящих сообщений */
@@ -167,7 +167,7 @@ export class AcpAdapter {
    private streamingMessageId: string = randomUUID();
 
    // Маппинг permission request: наш requestId → jsonRpcId
-   private pendingPermissions = new Map<string, number>();
+   private pendingPermissions = new Map<string, number | string>();
 
    // Счётчик turns
    private numTurns = 0;
@@ -528,7 +528,7 @@ export class AcpAdapter {
 
    // ── Обработка входящих запросов от агента ─────────────────────────────
 
-   private handleRequest(method: string, id: number, params: Record<string, unknown>): void {
+   private handleRequest(method: string, id: number | string, params: Record<string, unknown>): void {
       switch (method) {
          case 'session/request_permission':
             this.handlePermissionRequest(id, params);
@@ -553,7 +553,7 @@ export class AcpAdapter {
    }
 
    /** session/request_permission → permission_request для браузера */
-   private handlePermissionRequest(jsonRpcId: number, params: Record<string, unknown>): void {
+   private handlePermissionRequest(jsonRpcId: number | string, params: Record<string, unknown>): void {
       const requestId = randomUUID();
       const toolCall = params.toolCall as { title?: string; kind?: string; toolCallId?: string } | undefined;
       const options = params.options as string[] | undefined;
@@ -576,7 +576,7 @@ export class AcpAdapter {
    }
 
    /** fs/read_text_file → читаем файл с диска и отвечаем */
-   private async handleFsReadTextFile(id: number, params: Record<string, unknown>): Promise<void> {
+   private async handleFsReadTextFile(id: number | string, params: Record<string, unknown>): Promise<void> {
       const path = params.path as string;
       try {
          const content = await readFile(path, 'utf-8');
@@ -587,7 +587,7 @@ export class AcpAdapter {
    }
 
    /** fs/write_text_file → записываем файл на диск и отвечаем */
-   private async handleFsWriteTextFile(id: number, params: Record<string, unknown>): Promise<void> {
+   private async handleFsWriteTextFile(id: number | string, params: Record<string, unknown>): Promise<void> {
       const path = params.path as string;
       const content = params.content as string;
       try {
@@ -600,7 +600,7 @@ export class AcpAdapter {
    }
 
    /** Заглушка для терминальных запросов */
-   private async handleTerminalStub(id: number, method: string): Promise<void> {
+   private async handleTerminalStub(id: number | string, method: string): Promise<void> {
       console.warn(`[acp-adapter] Терминальный запрос ${method} пока не реализован`);
       await this.transport.respond(id, { error: `${method} не реализован` });
    }

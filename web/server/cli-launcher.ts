@@ -12,6 +12,9 @@ import type { SessionStore } from "./session-store.js";
 import type { BackendType } from "./session-types.js";
 import type { RecorderManager } from "./recorder.js";
 import { CodexAdapter } from "./codex-adapter.js";
+import { AcpAdapter } from "./acp-adapter.js";
+import { AcpTransport } from "./acp-transport.js";
+import { getAcpAgent } from "./acp-registry.js";
 import { resolveBinary, getEnrichedPath } from "./path-resolver.js";
 import { containerManager } from "./container-manager.js";
 import {
@@ -143,6 +146,8 @@ export interface LaunchOptions {
   codexInternetAccess?: boolean;
   /** Optional override for CODEX_HOME used by Codex sessions. */
   codexHome?: string;
+  /** ID из acp-agents.json (gemini, qwen, goose...) */
+  acpAgentId?: string;
   /** Docker container ID — when set, CLI runs inside container via docker exec */
   containerId?: string;
   /** Docker container name */
@@ -174,6 +179,7 @@ export class CliLauncher {
   private store: SessionStore | null = null;
   private recorder: RecorderManager | null = null;
   private onCodexAdapter: ((sessionId: string, adapter: CodexAdapter) => void) | null = null;
+  private onAcpAdapter: ((sessionId: string, adapter: AcpAdapter) => void) | null = null;
   private exitHandlers: ((sessionId: string, exitCode: number | null) => void)[] = [];
 
   constructor(port: number) {
@@ -183,6 +189,11 @@ export class CliLauncher {
   /** Register a callback for when a CodexAdapter is created (WsBridge needs to attach it). */
   onCodexAdapterCreated(cb: (sessionId: string, adapter: CodexAdapter) => void): void {
     this.onCodexAdapter = cb;
+  }
+
+  /** Регистрация коллбэка при создании AcpAdapter (WsBridge подключает его). */
+  onAcpAdapterCreated(cb: (sessionId: string, adapter: AcpAdapter) => void): void {
+    this.onAcpAdapter = cb;
   }
 
   /** Register a callback for when a CLI/Codex process exits. */
@@ -302,7 +313,9 @@ export class CliLauncher {
       this.sessionEnvs.set(sessionId, { ...options.env });
     }
 
-    if (backendType === "codex") {
+    if (backendType === "acp") {
+      this.spawnAcp(sessionId, info, options);
+    } else if (backendType === "codex") {
       this.spawnCodex(sessionId, info, options);
     } else {
       this.spawnCLI(sessionId, info, options);
@@ -1060,6 +1073,102 @@ export class CliLauncher {
         session.state = "exited";
         session.exitCode = exitCode;
       }
+      this.processes.delete(sessionId);
+      this.persistState();
+      for (const handler of this.exitHandlers) {
+        try { handler(sessionId, exitCode); } catch {}
+      }
+    });
+
+    this.persistState();
+  }
+
+  /**
+   * Запуск ACP-агента (Gemini CLI, Qwen Code, Goose и т.д.) через stdio.
+   */
+  private spawnAcp(sessionId: string, info: SdkSessionInfo, options: LaunchOptions): void {
+    const agentId = options.acpAgentId;
+    if (!agentId) {
+      console.error(`[cli-launcher] [ACP] Ошибка: acpAgentId не указан для сессии ${sessionId}`);
+      info.state = "exited";
+      info.exitCode = 1;
+      this.persistState();
+      return;
+    }
+
+    const agentDef = getAcpAgent(agentId);
+    if (!agentDef) {
+      console.error(`[cli-launcher] [ACP] Агент "${agentId}" не найден в реестре`);
+      info.state = "exited";
+      info.exitCode = 1;
+      this.persistState();
+      return;
+    }
+
+    const binary = resolveBinary(agentDef.binary);
+    if (!binary) {
+      console.error(`[cli-launcher] [ACP] Бинарник "${agentDef.binary}" не найден в PATH`);
+      info.state = "exited";
+      info.exitCode = 1;
+      this.persistState();
+      return;
+    }
+
+    const args = [...agentDef.acpFlags];
+    const enrichedPath = getEnrichedPath();
+    const binaryDir = resolve(binary, "..");
+    const pathSep = process.platform === "win32" ? ";" : ":";
+    const spawnPath = [binaryDir, ...enrichedPath.split(pathSep)].filter(Boolean).join(pathSep);
+
+    console.log(`[cli-launcher] [ACP] Запуск ${agentDef.name}: ${binary} ${args.join(" ")} (cwd: ${info.cwd})`);
+
+    const proc = Bun.spawn([binary, ...args], {
+      cwd: info.cwd,
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        PATH: spawnPath,
+        ...(options.env || {}),
+      },
+    });
+
+    info.pid = proc.pid;
+    info.state = "running";
+    this.processes.set(sessionId, proc);
+
+    // Создаём транспорт и адаптер
+    // Bun.spawn stdin — FileSink, оборачиваем для совместимости с AcpTransport
+    const stdinSink = proc.stdin;
+    const stdinWrapper = { write: (data: Uint8Array) => { stdinSink.write(data); return data.length; } };
+    const transport = new AcpTransport(stdinWrapper, proc.stdout);
+    const adapter = new AcpAdapter(transport, sessionId, {
+      agentId,
+      cwd: info.cwd,
+      model: options.model,
+      threadId: info.cliSessionId || undefined,
+      recorder: this.recorder ?? undefined,
+      killProcess: () => { proc.kill(); },
+    });
+
+    // stderr → логирование
+    const stderr = proc.stderr;
+    if (stderr && typeof stderr !== "number") {
+      this.pipeStream(sessionId, stderr, "stderr");
+    }
+
+    // Callback для WsBridge
+    if (this.onAcpAdapter) {
+      this.onAcpAdapter(sessionId, adapter);
+    }
+
+    // Мониторинг завершения процесса
+    proc.exited.then((exitCode) => {
+      console.log(`[cli-launcher] [ACP] ${agentDef.name} завершился (exit ${exitCode})`);
+      info.state = "exited";
+      info.exitCode = exitCode ?? 1;
+      transport.close();
       this.processes.delete(sessionId);
       this.persistState();
       for (const handler of this.exitHandlers) {
