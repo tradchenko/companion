@@ -39,6 +39,8 @@ import { registerLinearConnectionRoutes } from "./routes/linear-connection-route
 import { getConnection, listConnections, resolveApiKey } from "./linear-connections.js";
 import { buildLinearSystemPrompt } from "./linear-prompt-builder.js";
 import { getSettings } from "./settings-manager.js";
+import { getAllAcpAgents, getAcpAgent } from "./acp-registry.js";
+import { resolveAcpBinary } from "./acp-binary-resolver.js";
 import { discoverClaudeSessions } from "./claude-session-discovery.js";
 import { getClaudeSessionHistoryPage } from "./claude-session-history.js";
 import { verifyToken, getToken, getLanAddress, regenerateToken, getAllAddresses } from "./auth-manager.js";
@@ -195,7 +197,8 @@ export function createRoutes(
         : undefined;
       const forkSession = body.forkSession === true;
       const backend = body.backend ?? "claude";
-      if (backend !== "claude" && backend !== "codex") {
+      const isAcpBackend = typeof backend === "string" && backend.startsWith("acp:");
+      if (!isAcpBackend && backend !== "claude" && backend !== "codex") {
         return c.json({ error: `Invalid backend: ${String(backend)}` }, 400);
       }
 
@@ -437,7 +440,8 @@ export function createRoutes(
         codexSandbox: backend === "codex" ? "danger-full-access" : undefined,
         allowedTools: body.allowedTools,
         env: envVars,
-        backendType: backend,
+        backendType: isAcpBackend ? "acp" : backend,
+        acpAgentId: isAcpBackend ? backend.slice(4) : undefined,
         containerId,
         containerName,
         containerImage,
@@ -508,7 +512,8 @@ export function createRoutes(
           : undefined;
         const forkSession = body.forkSession === true;
         const backend = body.backend ?? "claude";
-        if (backend !== "claude" && backend !== "codex") {
+        const isAcpBackend = typeof backend === "string" && backend.startsWith("acp:");
+        if (!isAcpBackend && backend !== "claude" && backend !== "codex") {
           await stream.writeSSE({
             event: "error",
             data: JSON.stringify({ error: `Invalid backend: ${String(backend)}` }),
@@ -831,7 +836,8 @@ export function createRoutes(
           codexSandbox: backend === "codex" ? "danger-full-access" : undefined,
           allowedTools: body.allowedTools,
           env: envVars,
-          backendType: backend,
+          backendType: isAcpBackend ? "acp" : backend,
+          acpAgentId: isAcpBackend ? backend.slice(4) : undefined,
           containerId,
           containerName,
           containerImage,
@@ -1900,11 +1906,32 @@ export function createRoutes(
     backends.push({ id: "claude", name: "Claude Code", available: resolveBinary("claude") !== null });
     backends.push({ id: "codex", name: "Codex", available: resolveBinary("codex") !== null });
 
+    // ACP-агенты из реестра
+    for (const agent of getAllAcpAgents()) {
+      backends.push({
+        id: `acp:${agent.id}`,
+        name: agent.name,
+        available: resolveAcpBinary(agent.id) !== null,
+      });
+    }
+
     return c.json(backends);
   });
 
   api.get("/backends/:id/models", (c) => {
     const backendId = c.req.param("id");
+
+    // ACP-агенты — модели из реестра
+    if (backendId.startsWith("acp:")) {
+      const agentId = backendId.slice(4);
+      const agent = getAcpAgent(agentId);
+      if (!agent) return c.json({ error: `ACP agent "${agentId}" not found in registry` }, 404);
+      return c.json(agent.defaultModels.map((m: { value: string; label: string }) => ({
+        value: m.value,
+        label: m.label,
+        description: "",
+      })));
+    }
 
     if (backendId === "codex") {
       // Read Codex model list from its local cache file
