@@ -1,0 +1,79 @@
+[
+   {
+      "id": "gemini",
+      "name": "Gemini CLI",
+      "binary": "gemini",
+      "acpFlags": ["--experimental-acp"],
+      "defaultModels": [
+         { "value": "gemini-2.5-pro", "label": "Gemini 2.5 Pro" },
+         { "value": "gemini-2.5-flash", "label": "Gemini 2.5 Flash" },
+         { "value": "gemini-2.0-flash", "label": "Gemini 2.0 Flash" }
+      ],
+      "defaultModes": [
+         { "value": "bypassPermissions", "label": "Auto" },
+         { "value": "plan", "label": "Plan" }
+      ],
+      "searchPaths": {
+         "darwin": ["/opt/homebrew/bin", "/usr/local/bin"],
+         "linux": ["/usr/bin", "/usr/local/bin", "/snap/bin"],
+         "win32": []
+      },
+      "customModelInput": true
+   },
+   {
+      "id": "qwen",
+      "name": "Qwen Code",
+      "binary": "qwen",
+      "acpFlags": ["--acp"],
+      "defaultModels": [
+         { "value": "qwen3-coder", "label": "Qwen 3 Coder" },
+         { "value": "qwen-max", "label": "Qwen Max" }
+      ],
+      "defaultModes": [
+         { "value": "bypassPermissions", "label": "Auto" },
+         { "value": "plan", "label": "Plan" }
+      ],
+      "searchPaths": {
+         "darwin": ["/opt/homebrew/bin", "/usr/local/bin"],
+         "linux": ["/usr/bin", "/usr/local/bin"],
+         "win32": []
+      },
+      "customModelInput": true
+   },
+   {
+      "id": "goose",
+      "name": "Goose",
+      "binary": "goose",
+      "acpFlags": ["--acp"],
+      "defaultModels": [
+         { "value": "default", "label": "Default" }
+      ],
+      "defaultModes": [
+         { "value": "bypassPermissions", "label": "Auto" }
+      ],
+      "searchPaths": {
+         "darwin": ["~/.local/bin", "/opt/homebrew/bin"],
+         "linux": ["~/.local/bin", "/usr/local/bin"],
+         "win32": []
+      },
+      "customModelInput": true
+   },
+   {
+      "id": "copilot",
+      "name": "GitHub Copilot",
+      "binary": "copilot",
+      "acpFlags": [],
+      "defaultModels": [
+         { "value": "default", "label": "Default" }
+      ],
+      "defaultModes": [
+         { "value": "bypassPermissions", "label": "Auto" }
+      ],
+      "searchPaths": {
+         "darwin": ["/usr/local/bin", "/opt/homebrew/bin"],
+         "linux": ["/usr/local/bin"],
+         "win32": []
+      },
+      "customModelInput": false
+   }
+]

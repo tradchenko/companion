@@ -4,7 +4,6 @@ import {
   existsSync,
   copyFileSync,
   cpSync,
-  realpathSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -757,24 +756,14 @@ export class CliLauncher {
       spawnCwd = undefined;
     } else {
       const binaryDir = resolve(binary, "..");
-      const siblingNode = join(binaryDir, "node");
       const enrichedPath = getEnrichedPath();
       const pathSep = process.platform === "win32" ? ";" : ":";
       const spawnPath = [binaryDir, ...enrichedPath.split(pathSep)].filter(Boolean).join(pathSep);
 
-      if (existsSync(siblingNode)) {
-        let codexScript: string;
-        try {
-          codexScript = realpathSync(binary);
-        } catch {
-          codexScript = binary;
-        }
-        spawnCmd = [siblingNode, codexScript, ...args];
-      } else {
-        // On Windows, .cmd/.bat files cannot be spawned directly by Bun.spawn
-        const isCmdScript = process.platform === "win32" && (binary.endsWith(".cmd") || binary.endsWith(".bat"));
-        spawnCmd = isCmdScript ? ["cmd.exe", "/c", binary, ...args] : [binary, ...args];
-      }
+      // Homebrew/Cask Codex — нативный бинарник, запускаем напрямую.
+      // Windows: .cmd/.bat нельзя запустить через Bun.spawn напрямую.
+      const isCmdScript = process.platform === "win32" && (binary.endsWith(".cmd") || binary.endsWith(".bat"));
+      spawnCmd = isCmdScript ? ["cmd.exe", "/c", binary, ...args] : [binary, ...args];
 
       spawnEnv = {
         ...process.env,
@@ -987,24 +976,14 @@ export class CliLauncher {
     } else {
       // Host-based spawn — resolve node/shebang issues
       const binaryDir = resolve(binary, "..");
-      const siblingNode = join(binaryDir, "node");
       const enrichedPath = getEnrichedPath();
       const pathSep = process.platform === "win32" ? ";" : ":";
       const spawnPath = [binaryDir, ...enrichedPath.split(pathSep)].filter(Boolean).join(pathSep);
 
-      if (existsSync(siblingNode)) {
-        let codexScript: string;
-        try {
-          codexScript = realpathSync(binary);
-        } catch {
-          codexScript = binary;
-        }
-        spawnCmd = [siblingNode, codexScript, ...args];
-      } else {
-        // On Windows, .cmd/.bat files cannot be spawned directly by Bun.spawn
-        const isCmdScript = process.platform === "win32" && (binary.endsWith(".cmd") || binary.endsWith(".bat"));
-        spawnCmd = isCmdScript ? ["cmd.exe", "/c", binary, ...args] : [binary, ...args];
-      }
+      // Homebrew/Cask Codex — нативный бинарник, запускаем напрямую.
+      // Windows: .cmd/.bat нельзя запустить через Bun.spawn напрямую.
+      const isCmdScript = process.platform === "win32" && (binary.endsWith(".cmd") || binary.endsWith(".bat"));
+      spawnCmd = isCmdScript ? ["cmd.exe", "/c", binary, ...args] : [binary, ...args];
 
       spawnEnv = {
         ...process.env,
