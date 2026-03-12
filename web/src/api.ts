@@ -221,7 +221,7 @@ export interface CreateSessionOpts {
   branch?: string;
   createBranch?: boolean;
   useWorktree?: boolean;
-  backend?: "claude" | "codex" | "acp";
+  backend?: string;
   container?: ContainerCreateOpts;
   resumeSessionAt?: string;
   forkSession?: boolean;
@@ -416,6 +416,16 @@ export interface AppSettings {
   aiValidationAutoDeny: boolean;
   publicUrl: string;
   updateChannel: "stable" | "prerelease";
+  acpBinaryPaths: Record<string, string>;
+}
+
+export interface AcpAgentInfo {
+  id: string;
+  name: string;
+  binary: string;
+  resolvedPath: string | null;
+  customPath: string | null;
+  available: boolean;
 }
 
 export interface LinearConnectionSummary {
@@ -926,9 +936,13 @@ export const api = {
     editorTabEnabled?: boolean;
     publicUrl?: string;
     updateChannel?: "stable" | "prerelease";
+    acpBinaryPaths?: Record<string, string>;
   }) => put<AppSettings>("/settings", data),
   verifyAnthropicKey: (apiKey: string) =>
     post<{ valid: boolean; error?: string }>("/settings/anthropic/verify", { apiKey }),
+
+  // ACP-агенты
+  getAcpAgents: () => get<AcpAgentInfo[]>("/acp-agents"),
 
   // Tailscale
   getTailscaleStatus: () => get<TailscaleStatus>("/tailscale/status"),

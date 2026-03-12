@@ -93,15 +93,15 @@ function formatTimeAgo(timestamp: number): string {
 
 export function HomePage() {
   const [text, setText] = useState("");
-  const [backend, setBackend] = useState<BackendType>(() =>
-    (localStorage.getItem("cc-backend") as BackendType) || "claude",
+  const [backend, setBackend] = useState<string>(() =>
+    localStorage.getItem("cc-backend") || "claude",
   );
   const [backends, setBackends] = useState<BackendInfo[]>([]);
   const [model, setModel] = useState(() => getDefaultModel(
-    (localStorage.getItem("cc-backend") as BackendType) || "claude",
+    localStorage.getItem("cc-backend") || "claude",
   ));
   const [mode, setMode] = useState(() => getDefaultMode(
-    (localStorage.getItem("cc-backend") as BackendType) || "claude",
+    localStorage.getItem("cc-backend") || "claude",
   ));
   const [cwd, setCwd] = useState(() => getRecentDirs()[0] || "");
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -201,12 +201,29 @@ export function HomePage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When backend changes, reset model and mode to defaults
-  function switchBackend(newBackend: BackendType) {
+  function switchBackend(newBackend: string) {
     setBackend(newBackend);
     localStorage.setItem("cc-backend", newBackend);
     setDynamicModels(null);
+
+    const isAcp = newBackend.startsWith("acp:");
+
+    if (isAcp || newBackend === "codex") {
+      // Загрузить модели из API
+      api.getBackendModels(newBackend).then((models) => {
+        if (models.length > 0) {
+          const options = toModelOptions(models);
+          setDynamicModels(options);
+          if (!options.some((m) => m.value === model)) {
+            setModel(options[0].value);
+          }
+        }
+      }).catch(() => {});
+    }
+
     setModel(getDefaultModel(newBackend));
     setMode(getDefaultMode(newBackend));
+
     if (newBackend !== "claude") {
       setShowBranchingControls(false);
       setResumeCandidates([]);
@@ -218,9 +235,9 @@ export function HomePage() {
     }
   }
 
-  // Fetch dynamic models for the selected backend
+  // Загрузка динамических моделей для не-Claude бэкендов
   useEffect(() => {
-    if (backend !== "codex") {
+    if (backend === "claude") {
       setDynamicModels(null);
       return;
     }
@@ -228,13 +245,13 @@ export function HomePage() {
       if (models.length > 0) {
         const options = toModelOptions(models);
         setDynamicModels(options);
-        // If current model isn't in the list, switch to first
+        // Если текущая модель не в списке, переключиться на первую
         if (!options.some((m) => m.value === model)) {
           setModel(options[0].value);
         }
       }
     }).catch(() => {
-      // Fall back to hardcoded models silently
+      // Откат к статическим моделям
     });
   }, [backend]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -656,7 +673,7 @@ export function HomePage() {
           state: result.state as "starting" | "connected" | "running" | "exited",
           cwd: result.cwd,
           createdAt: Date.now(),
-          backendType: (result.backendType as BackendType | undefined) || backend,
+          backendType: (result.backendType as BackendType | undefined) || (backend.startsWith("acp:") ? "acp" : backend as BackendType),
           model,
           permissionMode: mode,
           resumeSessionAt: effectiveResumeSessionAt,
@@ -974,32 +991,26 @@ export function HomePage() {
 
             {/* Below-card selectors */}
           <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-3 px-1 flex-wrap">
-          {/* Backend toggle */}
+          {/* Backend dropdown */}
           {backends.length > 1 && (
-            <div className="flex items-center bg-cc-hover/50 rounded-lg p-0.5">
-              {backends.map((b) => (
-                <button
-                  key={b.id}
-                  onClick={() => b.available && switchBackend(b.id as BackendType)}
-                  disabled={!b.available}
-                  title={b.available ? b.name : `${b.name} CLI not found in PATH`}
-                  className={`flex items-center gap-1 px-2.5 py-2 text-xs rounded-md transition-colors ${
-                    !b.available
-                      ? "text-cc-muted/40 cursor-not-allowed"
-                      : backend === b.id
-                        ? "bg-cc-card text-cc-fg font-medium shadow-sm cursor-pointer"
-                        : "text-cc-muted hover:text-cc-fg cursor-pointer"
-                  }`}
-                >
-                  {b.name}
-                  {!b.available && (
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3 text-cc-error/60">
-                      <circle cx="8" cy="8" r="6" />
-                      <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" />
-                    </svg>
-                  )}
-                </button>
-              ))}
+            <div className="relative">
+              <select
+                value={backend}
+                onChange={(e) => {
+                  const b = backends.find((x) => x.id === e.target.value);
+                  if (b?.available) switchBackend(e.target.value);
+                }}
+                className="appearance-none bg-cc-hover/50 text-cc-fg text-xs rounded-lg px-3 py-2 pr-7 border border-cc-border focus:outline-none focus:ring-1 focus:ring-cc-accent cursor-pointer"
+              >
+                {backends.map((b) => (
+                  <option key={b.id} value={b.id} disabled={!b.available}>
+                    {b.name}{!b.available ? " (\u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D)" : ""}
+                  </option>
+                ))}
+              </select>
+              <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-cc-muted pointer-events-none" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 5l3 3 3-3" />
+              </svg>
             </div>
           )}
 

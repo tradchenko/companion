@@ -1,4 +1,3 @@
-import type { BackendType } from "../types.js";
 import type { BackendModelInfo } from "../api.js";
 
 export interface ModelOption {
@@ -78,26 +77,48 @@ export const CODEX_AGENT_MODES: ModeOption[] = [
 
 // ─── Getters ─────────────────────────────────────────────────────────────────
 
-export function getModelsForBackend(backend: BackendType): ModelOption[] {
-  return backend === "codex" ? CODEX_MODELS : CLAUDE_MODELS;
+export function getModelsForBackend(backend: string): ModelOption[] {
+  if (backend === "codex") return CODEX_MODELS;
+  if (backend === "claude") return CLAUDE_MODELS;
+  return []; // ACP — модели загружаются динамически из API
 }
 
-export function getModesForBackend(backend: BackendType): ModeOption[] {
-  return backend === "codex" ? CODEX_MODES : CLAUDE_MODES;
+export function getModesForBackend(backend: string): ModeOption[] {
+  if (backend === "codex") return CODEX_MODES;
+  if (backend === "claude") return CLAUDE_MODES;
+  // ACP — режимы по умолчанию
+  return [
+    { value: "bypassPermissions", label: "Auto" },
+    { value: "plan", label: "Plan" },
+  ];
 }
 
-export function getAgentModesForBackend(backend: BackendType): ModeOption[] {
-  return backend === "codex" ? CODEX_AGENT_MODES : CLAUDE_AGENT_MODES;
+export function getAgentModesForBackend(backend: string): ModeOption[] {
+  if (backend === "codex") return CODEX_AGENT_MODES;
+  if (backend === "claude") return CLAUDE_AGENT_MODES;
+  // ACP — режимы агентов по умолчанию
+  return [
+    { value: "bypassPermissions", label: "Full Auto" },
+    { value: "default", label: "Supervised" },
+  ];
 }
 
-export function getDefaultModel(backend: BackendType): string {
-  return backend === "codex" ? CODEX_MODELS[0].value : CLAUDE_MODELS[0].value;
+export function getDefaultModel(backend: string): string {
+  if (backend === "codex") return CODEX_MODELS[0].value;
+  if (backend === "claude") return CLAUDE_MODELS[0].value;
+  return ""; // ACP — будет установлена после загрузки моделей
 }
 
-export function getDefaultMode(backend: BackendType): string {
-  return backend === "codex" ? CODEX_MODES[0].value : CLAUDE_MODES[0].value;
+export function getDefaultMode(backend: string): string {
+  if (backend === "codex") return CODEX_MODES[0].value;
+  return "bypassPermissions";
 }
 
-export function getDefaultAgentMode(backend: BackendType): string {
-  return backend === "codex" ? CODEX_AGENT_MODES[0].value : CLAUDE_AGENT_MODES[0].value;
+export function getDefaultAgentMode(backend: string): string {
+  if (backend === "codex") return CODEX_AGENT_MODES[0].value;
+  return CLAUDE_AGENT_MODES[0].value;
+}
+
+export function isAcpBackend(backend: string): boolean {
+  return backend.startsWith("acp:");
 }
