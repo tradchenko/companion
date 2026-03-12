@@ -89,6 +89,7 @@ vi.mock("./settings-manager.js", () => ({
     aiValidationAutoDeny: false,
     publicUrl: "",
     updateChannel: "stable",
+    acpBinaryPaths: {},
     updatedAt: 0,
   })),
   updateSettings: vi.fn((patch) => ({
@@ -1612,6 +1613,7 @@ describe("POST /api/sessions/:id/archive — Linear transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive", {
@@ -1654,6 +1656,7 @@ describe("POST /api/sessions/:id/archive — Linear transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive", {
@@ -1689,6 +1692,7 @@ describe("POST /api/sessions/:id/archive — Linear transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive", {
@@ -1772,6 +1776,7 @@ describe("GET /api/sessions/:id/archive-info", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive-info", { method: "GET" });
@@ -2144,6 +2149,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 123,
     });
 
@@ -2193,6 +2199,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 123,
     });
 
@@ -2243,6 +2250,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "https://example.com",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 100,
     });
 
@@ -2277,6 +2285,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 456,
     });
 
@@ -2349,6 +2358,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 789,
     });
 
@@ -2392,6 +2402,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 999,
     });
 
@@ -2498,6 +2509,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "https://my-server.com",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 500,
     });
 
@@ -2673,6 +2685,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2705,6 +2718,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -2790,6 +2804,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -2882,6 +2897,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -2939,6 +2955,7 @@ describe("GET /api/linear/connection", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2971,6 +2988,7 @@ describe("GET /api/linear/connection", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -3025,6 +3043,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -3061,6 +3080,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -3096,6 +3116,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -3133,6 +3154,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -3204,6 +3226,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -3254,6 +3277,7 @@ describe("GET /api/linear/projects", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -3286,6 +3310,7 @@ describe("GET /api/linear/projects", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -3348,6 +3373,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -3380,6 +3406,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 
@@ -3457,6 +3484,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
 

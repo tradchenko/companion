@@ -2,6 +2,8 @@ import type { Hono } from "hono";
 import { DEFAULT_ANTHROPIC_MODEL, getSettings, updateSettings, type UpdateChannel } from "../settings-manager.js";
 import { linearCache } from "../linear-cache.js";
 import { listConnections } from "../linear-connections.js";
+import { getAllAcpAgents } from "../acp-registry.js";
+import { resolveAcpBinary } from "../acp-binary-resolver.js";
 
 export function registerSettingsRoutes(api: Hono): void {
   api.get("/settings", (c) => {
@@ -24,6 +26,7 @@ export function registerSettingsRoutes(api: Hono): void {
       aiValidationAutoDeny: settings.aiValidationAutoDeny,
       publicUrl: settings.publicUrl,
       updateChannel: settings.updateChannel,
+      acpBinaryPaths: settings.acpBinaryPaths,
     });
   });
 
@@ -80,6 +83,16 @@ export function registerSettingsRoutes(api: Hono): void {
     if (body.updateChannel !== undefined && body.updateChannel !== "stable" && body.updateChannel !== "prerelease") {
       return c.json({ error: "updateChannel must be 'stable' or 'prerelease'" }, 400);
     }
+    if (body.acpBinaryPaths !== undefined) {
+      if (typeof body.acpBinaryPaths !== "object" || body.acpBinaryPaths === null || Array.isArray(body.acpBinaryPaths)) {
+        return c.json({ error: "acpBinaryPaths must be an object" }, 400);
+      }
+      for (const [k, v] of Object.entries(body.acpBinaryPaths)) {
+        if (typeof k !== "string" || typeof v !== "string") {
+          return c.json({ error: "acpBinaryPaths values must be strings" }, 400);
+        }
+      }
+    }
     if (body.linearOAuthClientId !== undefined && typeof body.linearOAuthClientId !== "string") {
       return c.json({ error: "linearOAuthClientId must be a string" }, 400);
     }
@@ -100,7 +113,8 @@ export function registerSettingsRoutes(api: Hono): void {
       || body.aiValidationEnabled !== undefined || body.aiValidationAutoApprove !== undefined
       || body.aiValidationAutoDeny !== undefined
       || body.publicUrl !== undefined
-      || body.updateChannel !== undefined;
+      || body.updateChannel !== undefined
+      || body.acpBinaryPaths !== undefined;
     if (!hasAnyField) {
       return c.json({ error: "At least one settings field is required" }, 400);
     }
@@ -182,6 +196,10 @@ export function registerSettingsRoutes(api: Hono): void {
         body.updateChannel === "stable" || body.updateChannel === "prerelease"
           ? (body.updateChannel as UpdateChannel)
           : undefined,
+      acpBinaryPaths:
+        typeof body.acpBinaryPaths === "object" && body.acpBinaryPaths !== null && !Array.isArray(body.acpBinaryPaths)
+          ? (body.acpBinaryPaths as Record<string, string>)
+          : undefined,
     });
 
     const connectionsAfterUpdate = listConnections();
@@ -202,7 +220,23 @@ export function registerSettingsRoutes(api: Hono): void {
       aiValidationAutoDeny: settings.aiValidationAutoDeny,
       publicUrl: settings.publicUrl,
       updateChannel: settings.updateChannel,
+      acpBinaryPaths: settings.acpBinaryPaths,
     });
+  });
+
+  // ─── ACP-агенты со статусом обнаружения ────────────────────
+  api.get("/acp-agents", (c) => {
+    const s = getSettings();
+    const customPaths = s.acpBinaryPaths || {};
+
+    return c.json(getAllAcpAgents().map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      binary: agent.binary,
+      resolvedPath: resolveAcpBinary(agent.id, customPaths[agent.id]),
+      customPath: customPaths[agent.id] || null,
+      available: resolveAcpBinary(agent.id, customPaths[agent.id]) !== null,
+    })));
   });
 
   api.post("/settings/anthropic/verify", async (c) => {

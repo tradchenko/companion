@@ -41,6 +41,7 @@ function makeSettings(overrides: Partial<CompanionSettings> = {}): CompanionSett
     aiValidationAutoDeny: false,
     publicUrl: "",
     updateChannel: "stable",
+    acpBinaryPaths: {},
     updatedAt: 0,
     ...overrides,
   };

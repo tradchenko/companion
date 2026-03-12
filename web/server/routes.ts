@@ -1906,12 +1906,13 @@ export function createRoutes(
     backends.push({ id: "claude", name: "Claude Code", available: resolveBinary("claude") !== null });
     backends.push({ id: "codex", name: "Codex", available: resolveBinary("codex") !== null });
 
-    // ACP-агенты из реестра
+    // ACP-агенты из реестра (с учётом кастомных путей из настроек)
+    const customPaths = getSettings().acpBinaryPaths || {};
     for (const agent of getAllAcpAgents()) {
       backends.push({
         id: `acp:${agent.id}`,
         name: agent.name,
-        available: resolveAcpBinary(agent.id) !== null,
+        available: resolveAcpBinary(agent.id, customPaths[agent.id]) !== null,
       });
     }
 

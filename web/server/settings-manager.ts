@@ -37,6 +37,8 @@ export interface CompanionSettings {
   aiValidationAutoDeny: boolean;
   publicUrl: string;
   updateChannel: UpdateChannel;
+  /** Кастомные пути к бинарникам ACP-агентов: agentId → путь */
+  acpBinaryPaths: Record<string, string>;
   updatedAt: number;
 }
 
@@ -65,8 +67,20 @@ let settings: CompanionSettings = {
   aiValidationAutoDeny: false,
   publicUrl: "",
   updateChannel: "stable",
+  acpBinaryPaths: {},
   updatedAt: 0,
 };
+
+function normalizeAcpBinaryPaths(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const result: Record<string, string> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof val === "string" && val.trim()) {
+      result[key] = val.trim();
+    }
+  }
+  return result;
+}
 
 function normalize(raw: Partial<CompanionSettings> | null | undefined): CompanionSettings {
   return {
@@ -93,6 +107,7 @@ function normalize(raw: Partial<CompanionSettings> | null | undefined): Companio
     aiValidationAutoDeny: typeof raw?.aiValidationAutoDeny === "boolean" ? raw.aiValidationAutoDeny : false,
     publicUrl: typeof raw?.publicUrl === "string" ? raw.publicUrl.trim().replace(/\/+$/, "") : "",
     updateChannel: raw?.updateChannel === "prerelease" ? "prerelease" : "stable",
+    acpBinaryPaths: normalizeAcpBinaryPaths(raw?.acpBinaryPaths),
     updatedAt: typeof raw?.updatedAt === "number" ? raw.updatedAt : 0,
   };
 }
@@ -121,7 +136,7 @@ export function getSettings(): CompanionSettings {
 }
 
 export function updateSettings(
-  patch: Partial<Pick<CompanionSettings, "anthropicApiKey" | "anthropicModel" | "linearApiKey" | "linearAutoTransition" | "linearAutoTransitionStateId" | "linearAutoTransitionStateName" | "linearArchiveTransition" | "linearArchiveTransitionStateId" | "linearArchiveTransitionStateName" | "linearOAuthClientId" | "linearOAuthClientSecret" | "linearOAuthWebhookSecret" | "linearOAuthAccessToken" | "linearOAuthRefreshToken" | "editorTabEnabled" | "aiValidationEnabled" | "aiValidationAutoApprove" | "aiValidationAutoDeny" | "publicUrl" | "updateChannel">>,
+  patch: Partial<Pick<CompanionSettings, "anthropicApiKey" | "anthropicModel" | "linearApiKey" | "linearAutoTransition" | "linearAutoTransitionStateId" | "linearAutoTransitionStateName" | "linearArchiveTransition" | "linearArchiveTransitionStateId" | "linearArchiveTransitionStateName" | "linearOAuthClientId" | "linearOAuthClientSecret" | "linearOAuthWebhookSecret" | "linearOAuthAccessToken" | "linearOAuthRefreshToken" | "editorTabEnabled" | "aiValidationEnabled" | "aiValidationAutoApprove" | "aiValidationAutoDeny" | "publicUrl" | "updateChannel" | "acpBinaryPaths">>,
 ): CompanionSettings {
   ensureLoaded();
   settings = normalize({
@@ -145,6 +160,7 @@ export function updateSettings(
     aiValidationAutoDeny: patch.aiValidationAutoDeny ?? settings.aiValidationAutoDeny,
     publicUrl: patch.publicUrl ?? settings.publicUrl,
     updateChannel: patch.updateChannel ?? settings.updateChannel,
+    acpBinaryPaths: patch.acpBinaryPaths ?? settings.acpBinaryPaths,
     updatedAt: Date.now(),
   });
   persist();

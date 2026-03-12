@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { api } from "../api.js";
+import { api, type AcpAgentInfo } from "../api.js";
 import { useStore } from "../store.js";
 import { getTelemetryPreferenceEnabled, setTelemetryPreferenceEnabled } from "../analytics.js";
 import { navigateToSession, navigateHome } from "../utils/routing.js";
@@ -15,6 +15,7 @@ const CATEGORIES = [
   { id: "notifications", label: "Notifications" },
   { id: "anthropic", label: "Anthropic" },
   { id: "ai-validation", label: "AI Validation" },
+  { id: "acp-agents", label: "ACP Agents" },
   { id: "updates", label: "Updates" },
   { id: "telemetry", label: "Telemetry" },
   { id: "environments", label: "Environments" },
@@ -58,6 +59,12 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
   const [apiKeyFocused, setApiKeyFocused] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ valid: boolean; error?: string } | null>(null);
+
+  // ACP-агенты
+  const [acpAgents, setAcpAgents] = useState<AcpAgentInfo[]>([]);
+  const [acpBinaryPaths, setAcpBinaryPaths] = useState<Record<string, string>>({});
+  const [acpSaving, setAcpSaving] = useState(false);
+  const [acpSaved, setAcpSaved] = useState(false);
 
   // Auth section state
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -130,12 +137,16 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
           setPublicUrl(s.publicUrl);
           useStore.getState().setPublicUrl(s.publicUrl);
         }
+        if (s.acpBinaryPaths) setAcpBinaryPaths(s.acpBinaryPaths);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
 
     // Fetch auth token in parallel (non-blocking)
     api.getAuthToken().then((res) => setAuthToken(res.token)).catch(() => {});
+
+    // Загрузка ACP-агентов
+    api.getAcpAgents().then(setAcpAgents).catch(() => {});
   }, []);
 
   async function onSave(e: React.FormEvent) {
@@ -217,6 +228,33 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
     } catch (err: unknown) {
       setUpdateError(err instanceof Error ? err.message : String(err));
       setUpdatingApp(false);
+    }
+  }
+
+  function handleAcpPathChange(agentId: string, path: string) {
+    setAcpBinaryPaths((prev) => ({ ...prev, [agentId]: path }));
+  }
+
+  async function handleSaveAcpPaths() {
+    setAcpSaving(true);
+    setAcpSaved(false);
+    try {
+      // Убираем пустые значения
+      const cleaned: Record<string, string> = {};
+      for (const [k, v] of Object.entries(acpBinaryPaths)) {
+        if (v.trim()) cleaned[k] = v.trim();
+      }
+      const res = await api.updateSettings({ acpBinaryPaths: cleaned });
+      setAcpBinaryPaths(res.acpBinaryPaths || {});
+      // Обновим статусы агентов
+      const agents = await api.getAcpAgents();
+      setAcpAgents(agents);
+      setAcpSaved(true);
+      setTimeout(() => setAcpSaved(false), 1800);
+    } catch {
+      // тихий провал
+    } finally {
+      setAcpSaving(false);
     }
   }
 
@@ -753,6 +791,53 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
                       <span className={`text-xs font-medium ${aiValidationAutoDeny ? "text-cc-success" : "text-cc-muted"}`}>
                         {aiValidationAutoDeny ? "On" : "Off"}
                       </span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </section>
+
+            {/* ACP Agents */}
+            <section id="acp-agents" ref={setSectionRef("acp-agents")}>
+              <h2 className="text-sm font-semibold text-cc-fg mb-4">ACP Agents</h2>
+              <div className="space-y-3">
+                <p className="text-xs text-cc-muted leading-relaxed">
+                  Configure custom binary paths for ACP agents. Leave empty to auto-detect.
+                </p>
+                {acpAgents.length === 0 ? (
+                  <p className="text-xs text-cc-muted italic">No ACP agents registered.</p>
+                ) : (
+                  <>
+                    {acpAgents.map((agent) => (
+                      <div key={agent.id} className="rounded-lg bg-cc-hover px-3 py-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${agent.available ? "bg-cc-success" : "bg-cc-error"}`}
+                            title={agent.available ? "Available" : "Not found"}
+                          />
+                          <span className="text-sm font-medium text-cc-fg">{agent.name}</span>
+                          {agent.resolvedPath && (
+                            <span className="text-[11px] text-cc-muted truncate ml-auto" title={agent.resolvedPath}>
+                              {agent.resolvedPath}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={acpBinaryPaths[agent.id] || ""}
+                          onChange={(e) => handleAcpPathChange(agent.id, e.target.value)}
+                          placeholder={agent.resolvedPath || "Auto-detect"}
+                          className="w-full px-2.5 py-2 min-h-[36px] rounded-md text-sm bg-cc-bg border border-cc-border text-cc-fg placeholder:text-cc-muted focus:outline-none focus:ring-1 focus:ring-cc-primary"
+                        />
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleSaveAcpPaths}
+                      disabled={acpSaving}
+                      className="px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium bg-cc-primary hover:bg-cc-primary-hover text-white transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {acpSaving ? "Saving…" : acpSaved ? "Saved!" : "Save ACP Paths"}
                     </button>
                   </>
                 )}
