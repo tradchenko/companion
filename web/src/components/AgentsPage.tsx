@@ -25,7 +25,7 @@ interface AgentFormData {
   name: string;
   description: string;
   icon: string;
-  backendType: "claude" | "codex";
+  backendType: "claude" | "codex" | "acp";
   model: string;
   permissionMode: string;
   cwd: string;

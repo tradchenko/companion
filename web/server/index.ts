@@ -95,6 +95,11 @@ launcher.onCodexAdapterCreated((sessionId, adapter) => {
   wsBridge.attachCodexAdapter(sessionId, adapter);
 });
 
+// When an ACP adapter is created, attach it to the WsBridge
+launcher.onAcpAdapterCreated((sessionId, adapter) => {
+  wsBridge.attachAcpAdapter(sessionId, adapter);
+});
+
 // When a CLI/Codex process exits, mark the corresponding agent execution as completed
 launcher.onSessionExited((sessionId, exitCode) => {
   agentExecutor.handleSessionExited(sessionId, exitCode);

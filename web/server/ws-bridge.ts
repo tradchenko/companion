@@ -36,6 +36,8 @@ import {
   sequenceEvent,
 } from "./ws-bridge-replay.js";
 import { attachCodexAdapterHandlers } from "./ws-bridge-codex.js";
+import { attachAcpAdapterHandlers } from "./ws-bridge-acp.js";
+import type { AcpAdapter } from "./acp-adapter.js";
 import {
   handleInterrupt,
   handleSetModel,
@@ -207,6 +209,7 @@ export class WsBridge {
         backendType: p.state.backend_type || "claude",
         cliSocket: null,
         codexAdapter: null,
+        acpAdapter: null,
         browserSockets: new Set(),
         state: p.state,
         pendingPermissions: new Map(p.pendingPermissions || []),
@@ -312,6 +315,7 @@ export class WsBridge {
         backendType: type,
         cliSocket: null,
         codexAdapter: null,
+        acpAdapter: null,
         browserSockets: new Set(),
         state: makeDefaultState(sessionId, type),
         pendingPermissions: new Map(),
@@ -367,6 +371,9 @@ export class WsBridge {
     if (session.backendType === "codex") {
       return !!session.codexAdapter?.isConnected();
     }
+    if (session.backendType === "acp") {
+      return !!session.acpAdapter?.isConnected();
+    }
     return !!session.cliSocket;
   }
 
@@ -401,6 +408,12 @@ export class WsBridge {
       session.codexAdapter = null;
     }
 
+    // Disconnect ACP adapter
+    if (session.acpAdapter) {
+      session.acpAdapter.disconnect().catch(() => {});
+      session.acpAdapter = null;
+    }
+
     // Close all browser sockets
     for (const ws of session.browserSockets) {
       try { ws.close(); } catch {}
@@ -427,6 +440,28 @@ export class WsBridge {
     session.state.backend_type = "codex";
     session.codexAdapter = adapter;
     attachCodexAdapterHandlers(sessionId, session, adapter, {
+      persistSession: this.persistSession.bind(this),
+      refreshGitInfo: this.refreshGitInfo.bind(this),
+      broadcastToBrowsers: this.broadcastToBrowsers.bind(this),
+      onCLISessionId: this.onCLISessionId,
+      onFirstTurnCompleted: this.onFirstTurnCompleted,
+      autoNamingAttempted: this.autoNamingAttempted,
+      assistantMessageListeners: this.assistantMessageListeners,
+      resultListeners: this.resultListeners,
+      onCLIRelaunchNeeded: this.onCLIRelaunchNeeded,
+    });
+  }
+
+  /**
+   * Подключить AcpAdapter к сессии. Адаптер транслирует сообщения между
+   * ACP-агентом (stdio JSON-RPC) и браузерным WebSocket-протоколом.
+   */
+  attachAcpAdapter(sessionId: string, adapter: AcpAdapter): void {
+    const session = this.getOrCreateSession(sessionId, "acp");
+    session.backendType = "acp";
+    session.state.backend_type = "acp";
+    session.acpAdapter = adapter;
+    attachAcpAdapterHandlers(sessionId, session, adapter, {
       persistSession: this.persistSession.bind(this),
       refreshGitInfo: this.refreshGitInfo.bind(this),
       broadcastToBrowsers: this.broadcastToBrowsers.bind(this),
@@ -596,12 +631,14 @@ export class WsBridge {
     }
 
     // Notify if backend is not connected and request relaunch
+    // Treat an attached adapter as "alive" during init.
+    // `isConnected()` flips true only after initialize/thread start, and
+    // relaunching during that window can kill a healthy startup.
     const backendConnected = session.backendType === "codex"
-      // Treat an attached adapter as "alive" during init.
-      // `isConnected()` flips true only after initialize/thread start, and
-      // relaunching during that window can kill a healthy startup.
       ? !!session.codexAdapter
-      : !!session.cliSocket;
+      : session.backendType === "acp"
+        ? !!session.acpAdapter
+        : !!session.cliSocket;
 
     if (!backendConnected && !this.disconnectTimers.has(sessionId)) {
       // Only signal disconnection if we're not within the debounce window
@@ -1227,6 +1264,32 @@ export class WsBridge {
         // The adapter itself also queues during init, but this covers
         // the window between session creation and adapter attachment.
         console.log(`[ws-bridge] Codex adapter not yet attached for session ${session.id}, queuing ${msg.type}`);
+        session.pendingMessages.push(JSON.stringify(msg));
+      }
+      return;
+    }
+
+    // Для ACP-сессий делегируем адаптеру (аналогично Codex)
+    if (session.backendType === "acp") {
+      if (msg.type === "user_message") {
+        const ts = Date.now();
+        this.appendHistory(session, {
+          type: "user_message",
+          content: msg.content,
+          timestamp: ts,
+          id: `user-${ts}-${this.userMsgCounter++}`,
+        });
+        this.persistSession(session);
+      }
+      if (msg.type === "permission_response") {
+        session.pendingPermissions.delete(msg.request_id);
+        this.persistSession(session);
+      }
+
+      if (session.acpAdapter) {
+        session.acpAdapter.sendBrowserMessage(msg);
+      } else {
+        console.log(`[ws-bridge] ACP adapter not yet attached for session ${session.id}, queuing ${msg.type}`);
         session.pendingMessages.push(JSON.stringify(msg));
       }
       return;

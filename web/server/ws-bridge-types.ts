@@ -7,6 +7,7 @@ import type {
   BufferedBrowserEvent,
 } from "./session-types.js";
 import type { CodexAdapter } from "./codex-adapter.js";
+import type { AcpAdapter } from "./acp-adapter.js";
 import { getSettings } from "./settings-manager.js";
 
 export interface CLISocketData {
@@ -44,6 +45,7 @@ export interface Session {
   backendType: BackendType;
   cliSocket: ServerWebSocket<SocketData> | null;
   codexAdapter: CodexAdapter | null;
+  acpAdapter: AcpAdapter | null;
   browserSockets: Set<ServerWebSocket<SocketData>>;
   state: SessionState;
   pendingPermissions: Map<string, PermissionRequest>;
