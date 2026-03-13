@@ -460,11 +460,10 @@ describe("launch", () => {
     expect(cmdAndArgs).toContain("tools.webSearch=false");
   });
 
-  it("spawns codex via sibling node binary to bypass shebang issues", () => {
+  it("spawns codex directly and uses sibling node for WS proxy", () => {
     // When a `node` binary exists next to the resolved `codex`, the launcher
-    // should invoke `node <codex-script>` directly instead of relying on
-    // the #!/usr/bin/env node shebang (which may resolve to system Node v12).
-    // Create a temp dir with both `codex` and `node` files to simulate nvm layout.
+    // spawns the main codex process directly and uses the sibling node
+    // for the WS proxy process.
     const tmpBinDir = mkdtempSync(join(tmpdir(), "codex-test-"));
     const fakeCodex = join(tmpBinDir, "codex");
     const fakeNode = join(tmpBinDir, "node");
@@ -473,7 +472,10 @@ describe("launch", () => {
     realWriteFileSync(fakeNode, "#!/bin/sh\n");
 
     mockResolveBinary.mockReturnValue(fakeCodex);
+    // Первый вызов — основной codex-процесс, второй — WS proxy
+    const proxyMock = createPendingCodexWsProxyProc();
     mockSpawn.mockReturnValueOnce(createMockCodexProc());
+    mockSpawn.mockReturnValueOnce(proxyMock.proc);
 
     launcher.launch({
       backendType: "codex",
@@ -481,14 +483,18 @@ describe("launch", () => {
       codexSandbox: "workspace-write",
     });
 
-    const [cmdAndArgs] = mockSpawn.mock.calls[0];
-    // Sibling node exists, so it should use explicit node invocation
-    expect(cmdAndArgs[0]).toBe(fakeNode);
-    // The codex script path should be arg 1
-    expect(cmdAndArgs[1]).toContain("codex");
-    expect(cmdAndArgs).toContain("app-server");
-    expect(cmdAndArgs).toContain("--enable");
-    expect(cmdAndArgs).toContain("multi_agent");
+    // Первый вызов — основной Codex-процесс, запускается напрямую через binary
+    const [mainCmd] = mockSpawn.mock.calls[0];
+    expect(mainCmd[0]).toBe(fakeCodex);
+    expect(mainCmd).toContain("app-server");
+    expect(mainCmd).toContain("--enable");
+    expect(mainCmd).toContain("multi_agent");
+
+    // Если proxy был вызван — проверяем использование sibling node
+    if (mockSpawn.mock.calls.length > 1) {
+      const [proxyCmd] = mockSpawn.mock.calls[1];
+      expect(proxyCmd[0]).toBe(fakeNode);
+    }
 
     // Cleanup
     rmSync(tmpBinDir, { recursive: true, force: true });

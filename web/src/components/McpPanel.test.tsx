@@ -28,6 +28,7 @@ interface MockStoreState {
   mcpServers: Map<string, McpServerDetail[]>;
   cliConnected: Map<string, boolean>;
   sessions: Map<string, { mcp_servers?: { name: string; status: string }[] }>;
+  sdkSessions: { sessionId: string; backendType: string }[];
 }
 
 let mockState: MockStoreState;
@@ -37,6 +38,7 @@ function resetStore(overrides: Partial<MockStoreState> = {}) {
     mcpServers: new Map(),
     cliConnected: new Map([["s1", true]]),
     sessions: new Map([["s1", { mcp_servers: [] }]]),
+    sdkSessions: [{ sessionId: "s1", backendType: "codex" }],
     ...overrides,
   };
 }

@@ -498,7 +498,7 @@ describe("HomePage", () => {
   // ─── Backend toggle ─────────────────────────────────────────────────────────
 
   it("shows backend toggle when multiple backends are available", async () => {
-    // When both Claude and Codex backends are available, the toggle should appear
+    // When both Claude and Codex backends are available, the dropdown should appear
     // and switching should reset model/mode to defaults for the new backend.
     mockApi.getBackends.mockResolvedValue([
       { id: "claude", name: "Claude", available: true },
@@ -509,14 +509,14 @@ describe("HomePage", () => {
     render(<HomePage />);
     await screen.findByPlaceholderText("Fix a bug, build a feature, refactor code...");
 
-    // Both backends should be visible
-    const claudeButton = screen.getByRole("button", { name: "Claude" });
-    const codexButton = screen.getByRole("button", { name: "Codex" });
-    expect(claudeButton).toBeInTheDocument();
-    expect(codexButton).toBeInTheDocument();
+    // Backend dropdown (select) should be visible with both options
+    const select = screen.getByRole("combobox");
+    expect(select).toBeInTheDocument();
+    const options = screen.getAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual(["Claude", "Codex"]);
 
-    // Switch to Codex
-    fireEvent.click(codexButton);
+    // Switch to Codex via select
+    fireEvent.change(select, { target: { value: "codex" } });
 
     // Logo should change to codex
     await waitFor(() => {
@@ -529,7 +529,7 @@ describe("HomePage", () => {
   });
 
   it("disables unavailable backends in the toggle", async () => {
-    // An unavailable backend should be rendered as a disabled button.
+    // An unavailable backend should be rendered as a disabled option in the dropdown.
     mockApi.getBackends.mockResolvedValue([
       { id: "claude", name: "Claude", available: true },
       { id: "codex", name: "Codex", available: false },
@@ -538,8 +538,10 @@ describe("HomePage", () => {
     render(<HomePage />);
     await screen.findByPlaceholderText("Fix a bug, build a feature, refactor code...");
 
-    const codexButton = await screen.findByTitle("Codex CLI not found in PATH");
-    expect(codexButton).toBeDisabled();
+    // Codex option should be disabled and show "(не найден)" suffix
+    const codexOption = await screen.findByRole("option", { name: /Codex/ });
+    expect(codexOption).toBeDisabled();
+    expect(codexOption.textContent).toContain("не найден");
   });
 
   // ─── Environment dropdown ───────────────────────────────────────────────────

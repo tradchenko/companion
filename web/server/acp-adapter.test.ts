@@ -6,6 +6,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Мокаем чтение MCP конфигов чтобы тесты не зависели от ~/.claude/settings.json
+vi.mock('./mcp-config-reader.js', () => ({
+   readMcpServersForAcp: vi.fn(() => []),
+}));
+
 import type { IAcpTransport, AcpAdapterOptions } from './acp-adapter.js';
 import { AcpAdapter } from './acp-adapter.js';
 import type { BrowserIncomingMessage, BrowserOutgoingMessage } from './session-types.js';

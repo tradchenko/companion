@@ -45,6 +45,7 @@ describe("settings-manager", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       updatedAt: 0,
     });
   });
@@ -96,6 +97,7 @@ describe("settings-manager", () => {
       aiValidationAutoApprove: true,
       aiValidationAutoDeny: false,
       publicUrl: "",
+      acpBinaryPaths: {},
       updateChannel: "stable",
       updatedAt: 123,
     });
@@ -172,6 +174,7 @@ describe("settings-manager", () => {
       aiValidationAutoApprove: true,
       aiValidationAutoDeny: false,
       publicUrl: "",
+      acpBinaryPaths: {},
       updateChannel: "stable",
       updatedAt: 0,
     });

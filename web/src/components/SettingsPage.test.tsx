@@ -67,6 +67,7 @@ const mockApi = {
   regenerateAuthToken: vi.fn(),
   getAuthQr: vi.fn(),
   verifyAnthropicKey: vi.fn(),
+  getAcpAgents: vi.fn(),
 };
 
 const mockTelemetry = {
@@ -84,6 +85,7 @@ vi.mock("../api.js", () => ({
     regenerateAuthToken: (...args: unknown[]) => mockApi.regenerateAuthToken(...args),
     getAuthQr: (...args: unknown[]) => mockApi.getAuthQr(...args),
     verifyAnthropicKey: (...args: unknown[]) => mockApi.verifyAnthropicKey(...args),
+    getAcpAgents: (...args: unknown[]) => mockApi.getAcpAgents(...args),
   },
 }));
 
@@ -145,6 +147,7 @@ beforeEach(() => {
       { label: "Tailscale", url: "http://100.118.112.23:3456", qrDataUrl: "data:image/png;base64,TS_QR" },
     ],
   });
+  mockApi.getAcpAgents.mockResolvedValue([]);
   mockTelemetry.getTelemetryPreferenceEnabled.mockReturnValue(true);
 });
 

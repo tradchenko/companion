@@ -36,6 +36,17 @@ vi.mock("./path-resolver.js", () => ({
   resolveBinary: mockResolveBinary,
 }));
 
+const mockGetAllAcpAgents = vi.hoisted(() => vi.fn(() => [] as Array<{ id: string; name: string; binaryName: string; models: string[]; defaultModel: string }>));
+const mockGetAcpAgent = vi.hoisted(() => vi.fn((_id: string) => null as { id: string; name: string; binaryName: string; models: string[]; defaultModel: string } | null));
+const mockResolveAcpBinary = vi.hoisted(() => vi.fn((_id: string, _custom?: string) => null as string | null));
+vi.mock("./acp-registry.js", () => ({
+  getAllAcpAgents: mockGetAllAcpAgents,
+  getAcpAgent: mockGetAcpAgent,
+}));
+vi.mock("./acp-binary-resolver.js", () => ({
+  resolveAcpBinary: mockResolveAcpBinary,
+}));
+
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
   return {
@@ -2174,6 +2185,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
     });
   });
 
@@ -2224,6 +2236,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
     });
   });
 
@@ -2333,6 +2346,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
     });
   });
 
