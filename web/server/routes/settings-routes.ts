@@ -28,6 +28,7 @@ export function registerSettingsRoutes(api: Hono): void {
       updateChannel: settings.updateChannel,
       acpBinaryPaths: settings.acpBinaryPaths,
       sessionStoragePath: settings.sessionStoragePath,
+      dockerAutoUpdate: settings.dockerAutoUpdate,
     });
   });
 
@@ -106,6 +107,9 @@ export function registerSettingsRoutes(api: Hono): void {
     if (body.linearOAuthWebhookSecret !== undefined && typeof body.linearOAuthWebhookSecret !== "string") {
       return c.json({ error: "linearOAuthWebhookSecret must be a string" }, 400);
     }
+    if (body.dockerAutoUpdate !== undefined && typeof body.dockerAutoUpdate !== "boolean") {
+      return c.json({ error: "dockerAutoUpdate must be a boolean" }, 400);
+    }
     const hasAnyField = body.anthropicApiKey !== undefined || body.anthropicModel !== undefined
       || body.linearApiKey !== undefined || body.linearAutoTransition !== undefined
       || body.linearAutoTransitionStateId !== undefined || body.linearAutoTransitionStateName !== undefined
@@ -119,7 +123,8 @@ export function registerSettingsRoutes(api: Hono): void {
       || body.publicUrl !== undefined
       || body.updateChannel !== undefined
       || body.acpBinaryPaths !== undefined
-      || body.sessionStoragePath !== undefined;
+      || body.sessionStoragePath !== undefined
+      || body.dockerAutoUpdate !== undefined;
     if (!hasAnyField) {
       return c.json({ error: "At least one settings field is required" }, 400);
     }
@@ -205,6 +210,10 @@ export function registerSettingsRoutes(api: Hono): void {
         typeof body.acpBinaryPaths === "object" && body.acpBinaryPaths !== null && !Array.isArray(body.acpBinaryPaths)
           ? (body.acpBinaryPaths as Record<string, string>)
           : undefined,
+      dockerAutoUpdate:
+        typeof body.dockerAutoUpdate === "boolean"
+          ? body.dockerAutoUpdate
+          : undefined,
     });
 
     const connectionsAfterUpdate = listConnections();
@@ -226,6 +235,7 @@ export function registerSettingsRoutes(api: Hono): void {
       publicUrl: settings.publicUrl,
       updateChannel: settings.updateChannel,
       acpBinaryPaths: settings.acpBinaryPaths,
+      dockerAutoUpdate: settings.dockerAutoUpdate,
     });
   });
 

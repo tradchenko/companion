@@ -43,6 +43,7 @@ function makeSettings(overrides: Partial<CompanionSettings> = {}): CompanionSett
     updateChannel: "stable",
     acpBinaryPaths: {},
     sessionStoragePath: "",
+    dockerAutoUpdate: false,
     updatedAt: 0,
     ...overrides,
   };

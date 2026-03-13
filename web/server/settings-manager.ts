@@ -41,6 +41,7 @@ export interface CompanionSettings {
   acpBinaryPaths: Record<string, string>;
   /** Путь к директории хранения сессий (по умолчанию ~/.companion/sessions/) */
   sessionStoragePath?: string;
+  dockerAutoUpdate: boolean;
   updatedAt: number;
 }
 
@@ -71,6 +72,7 @@ let settings: CompanionSettings = {
   updateChannel: "stable",
   acpBinaryPaths: {},
   sessionStoragePath: "",
+  dockerAutoUpdate: false,
   updatedAt: 0,
 };
 
@@ -112,6 +114,7 @@ function normalize(raw: Partial<CompanionSettings> | null | undefined): Companio
     updateChannel: raw?.updateChannel === "prerelease" ? "prerelease" : "stable",
     acpBinaryPaths: normalizeAcpBinaryPaths(raw?.acpBinaryPaths),
     sessionStoragePath: typeof raw?.sessionStoragePath === "string" ? raw.sessionStoragePath.trim() : "",
+    dockerAutoUpdate: typeof raw?.dockerAutoUpdate === "boolean" ? raw.dockerAutoUpdate : false,
     updatedAt: typeof raw?.updatedAt === "number" ? raw.updatedAt : 0,
   };
 }
@@ -140,7 +143,7 @@ export function getSettings(): CompanionSettings {
 }
 
 export function updateSettings(
-  patch: Partial<Pick<CompanionSettings, "anthropicApiKey" | "anthropicModel" | "linearApiKey" | "linearAutoTransition" | "linearAutoTransitionStateId" | "linearAutoTransitionStateName" | "linearArchiveTransition" | "linearArchiveTransitionStateId" | "linearArchiveTransitionStateName" | "linearOAuthClientId" | "linearOAuthClientSecret" | "linearOAuthWebhookSecret" | "linearOAuthAccessToken" | "linearOAuthRefreshToken" | "editorTabEnabled" | "aiValidationEnabled" | "aiValidationAutoApprove" | "aiValidationAutoDeny" | "publicUrl" | "updateChannel" | "acpBinaryPaths">>,
+  patch: Partial<Pick<CompanionSettings, "anthropicApiKey" | "anthropicModel" | "linearApiKey" | "linearAutoTransition" | "linearAutoTransitionStateId" | "linearAutoTransitionStateName" | "linearArchiveTransition" | "linearArchiveTransitionStateId" | "linearArchiveTransitionStateName" | "linearOAuthClientId" | "linearOAuthClientSecret" | "linearOAuthWebhookSecret" | "linearOAuthAccessToken" | "linearOAuthRefreshToken" | "editorTabEnabled" | "aiValidationEnabled" | "aiValidationAutoApprove" | "aiValidationAutoDeny" | "publicUrl" | "updateChannel" | "acpBinaryPaths" | "dockerAutoUpdate">>,
 ): CompanionSettings {
   ensureLoaded();
   settings = normalize({
@@ -165,6 +168,7 @@ export function updateSettings(
     publicUrl: patch.publicUrl ?? settings.publicUrl,
     updateChannel: patch.updateChannel ?? settings.updateChannel,
     acpBinaryPaths: patch.acpBinaryPaths ?? settings.acpBinaryPaths,
+    dockerAutoUpdate: patch.dockerAutoUpdate ?? settings.dockerAutoUpdate,
     updatedAt: Date.now(),
   });
   persist();

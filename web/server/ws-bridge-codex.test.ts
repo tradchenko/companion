@@ -140,6 +140,7 @@ describe("attachCodexAdapterHandlers", () => {
       updateChannel: "stable",
       acpBinaryPaths: {},
       sessionStoragePath: "",
+      dockerAutoUpdate: false,
       updatedAt: 0,
     });
   });
@@ -1072,6 +1073,7 @@ describe("attachCodexAdapterHandlers", () => {
         updateChannel: "stable",
         acpBinaryPaths: {},
         sessionStoragePath: "",
+        dockerAutoUpdate: false,
         updatedAt: 0,
       });
     }
@@ -1247,6 +1249,7 @@ describe("attachCodexAdapterHandlers", () => {
         updateChannel: "stable",
         acpBinaryPaths: {},
         sessionStoragePath: "",
+        dockerAutoUpdate: false,
         updatedAt: 0,
       });
 
@@ -1292,6 +1295,7 @@ describe("attachCodexAdapterHandlers", () => {
         updateChannel: "stable",
         acpBinaryPaths: {},
         sessionStoragePath: "",
+        dockerAutoUpdate: false,
         updatedAt: 0,
       });
 
@@ -1402,6 +1406,7 @@ describe("attachCodexAdapterHandlers", () => {
         updateChannel: "stable",
         acpBinaryPaths: {},
         sessionStoragePath: "",
+        dockerAutoUpdate: false,
         updatedAt: 0,
       });
 
@@ -1531,6 +1536,7 @@ describe("attachCodexAdapterHandlers", () => {
         updateChannel: "stable",
         acpBinaryPaths: {},
         sessionStoragePath: "",
+        dockerAutoUpdate: false,
         updatedAt: 0,
       });
 

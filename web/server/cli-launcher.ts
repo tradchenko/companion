@@ -113,6 +113,8 @@ export interface SdkSessionInfo {
   agentId?: string;
   /** Human-readable name of the agent that spawned this session */
   agentName?: string;
+  /** Sandbox profile slug used for this session */
+  sandboxSlug?: string;
 
   // Codex WebSocket transport fields
   /** Port used for Codex WebSocket transport (host mode). */
@@ -162,6 +164,8 @@ export interface LaunchOptions {
   forkSession?: boolean;
   /** Optional system prompt to inject into Codex sessions (e.g. Linear context). */
   systemPrompt?: string;
+  /** Sandbox profile slug used for this session */
+  sandboxSlug?: string;
 }
 
 /**
@@ -298,6 +302,11 @@ export class CliLauncher {
     if (backendType === "codex") {
       info.codexInternetAccess = options.codexInternetAccess === true;
       info.codexSandbox = options.codexSandbox;
+    }
+
+    // Store sandbox slug if provided
+    if (options.sandboxSlug) {
+      info.sandboxSlug = options.sandboxSlug;
     }
 
     // Store container metadata if provided

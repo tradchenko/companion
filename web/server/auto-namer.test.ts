@@ -36,6 +36,7 @@ beforeEach(() => {
     updateChannel: "stable",
     acpBinaryPaths: {},
     sessionStoragePath: "",
+    dockerAutoUpdate: false,
     updatedAt: 0,
   });
 });
@@ -77,6 +78,8 @@ describe("generateSessionTitle", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
+      dockerAutoUpdate: false,
       updatedAt: 0,
     });
 
@@ -125,6 +128,8 @@ describe("generateSessionTitle", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
+      dockerAutoUpdate: false,
       updatedAt: 0,
     });
     mockFetch.mockResolvedValueOnce({
@@ -202,6 +207,8 @@ describe("generateSessionTitle", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
+      dockerAutoUpdate: false,
       updatedAt: 0,
     });
     mockFetch.mockResolvedValueOnce({

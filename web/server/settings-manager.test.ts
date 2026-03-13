@@ -47,6 +47,7 @@ describe("settings-manager", () => {
       updateChannel: "stable",
       acpBinaryPaths: {},
       sessionStoragePath: "",
+      dockerAutoUpdate: false,
       updatedAt: 0,
     });
   });
@@ -101,6 +102,7 @@ describe("settings-manager", () => {
       acpBinaryPaths: {},
       sessionStoragePath: "",
       updateChannel: "stable",
+      dockerAutoUpdate: false,
       updatedAt: 123,
     });
   });
@@ -179,6 +181,7 @@ describe("settings-manager", () => {
       acpBinaryPaths: {},
       sessionStoragePath: "",
       updateChannel: "stable",
+      dockerAutoUpdate: false,
       updatedAt: 0,
     });
   });
