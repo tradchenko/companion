@@ -115,6 +115,8 @@ export interface SdkSessionInfo {
   agentName?: string;
   /** Sandbox profile slug used for this session */
   sandboxSlug?: string;
+  /** ID ACP-агента (gemini, qwen, goose...) — нужен для relaunch */
+  acpAgentId?: string;
 
   // Codex WebSocket transport fields
   /** Port used for Codex WebSocket transport (host mode). */
@@ -309,6 +311,11 @@ export class CliLauncher {
       info.sandboxSlug = options.sandboxSlug;
     }
 
+    // Сохраняем ID ACP-агента для relaunch
+    if (backendType === "acp" && options.acpAgentId) {
+      info.acpAgentId = options.acpAgentId;
+    }
+
     // Store container metadata if provided
     if (options.containerId) {
       info.containerId = options.containerId;
@@ -419,7 +426,15 @@ export class CliLauncher {
 
     const runtimeEnv = this.sessionEnvs.get(sessionId);
 
-    if (info.backendType === "codex") {
+    if (info.backendType === "acp") {
+      this.spawnAcp(sessionId, info, {
+        model: info.model,
+        permissionMode: info.permissionMode,
+        cwd: info.cwd,
+        acpAgentId: info.acpAgentId,
+        env: runtimeEnv,
+      });
+    } else if (info.backendType === "codex") {
       this.spawnCodex(sessionId, info, {
         model: info.model,
         permissionMode: info.permissionMode,

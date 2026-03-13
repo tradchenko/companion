@@ -414,6 +414,7 @@ export function Sidebar() {
       cronJobName: bridgeState?.cronJobName || sdkInfo?.cronJobName,
       agentId: bridgeState?.agentId || sdkInfo?.agentId,
       agentName: bridgeState?.agentName || sdkInfo?.agentName,
+      agents: bridgeState?.agents,
     };
   }).sort((a, b) => b.createdAt - a.createdAt);
 

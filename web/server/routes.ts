@@ -42,7 +42,7 @@ import { registerLinearConnectionRoutes } from "./routes/linear-connection-route
 import { getConnection, listConnections, resolveApiKey } from "./linear-connections.js";
 import { buildLinearSystemPrompt } from "./linear-prompt-builder.js";
 import { getSettings } from "./settings-manager.js";
-import { getAllAcpAgents, getAcpAgent } from "./acp-registry.js";
+import { getAllAcpAgents, getAcpAgent, getAcpAgentModels } from "./acp-registry.js";
 import { resolveAcpBinary } from "./acp-binary-resolver.js";
 import { discoverClaudeSessions } from "./claude-session-discovery.js";
 import { getClaudeSessionHistoryPage } from "./claude-session-history.js";
@@ -1955,12 +1955,13 @@ export function createRoutes(
   api.get("/backends/:id/models", (c) => {
     const backendId = c.req.param("id");
 
-    // ACP-агенты — модели из реестра
+    // ACP-агенты — кеш из session/new, fallback на defaultModels
     if (backendId.startsWith("acp:")) {
       const agentId = backendId.slice(4);
       const agent = getAcpAgent(agentId);
       if (!agent) return c.json({ error: `ACP agent "${agentId}" not found in registry` }, 404);
-      return c.json(agent.defaultModels.map((m: { value: string; label: string }) => ({
+      const models = getAcpAgentModels(agentId);
+      return c.json(models.map((m) => ({
         value: m.value,
         label: m.label,
         description: "",

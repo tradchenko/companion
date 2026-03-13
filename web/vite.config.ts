@@ -37,12 +37,12 @@ export default defineConfig({
   ],
   server: {
     host: "0.0.0.0",
-    port: 5174,
+    port: Number(process.env.VITE_PORT) || 5174,
     strictPort: false,
     proxy: {
-      "/api": "http://localhost:3457",
+      "/api": `http://localhost:${process.env.PORT || 3457}`,
       "/ws": {
-        target: "ws://localhost:3457",
+        target: `ws://localhost:${process.env.PORT || 3457}`,
         ws: true,
       },
     },

@@ -14,6 +14,7 @@ import {
 } from "../api.js";
 import { connectSession, waitForConnection, sendToSession } from "../ws.js";
 import { disconnectSession } from "../ws.js";
+import { SessionCreationProgress } from "./SessionCreationProgress.js";
 import { generateUniqueSessionName } from "../utils/names.js";
 import { getRecentDirs, addRecentDir } from "../utils/recent-dirs.js";
 import { navigateToSession } from "../utils/routing.js";
@@ -341,8 +342,8 @@ export function HomePage() {
     });
   }, [cwd]);
 
-  const selectedModel = MODELS.find((m) => m.value === model) || MODELS[0];
-  const selectedMode = MODES.find((m) => m.value === mode) || MODES[0];
+  const selectedModel = MODELS.find((m) => m.value === model) || MODELS[0] || { value: "", label: "Loading…", icon: "" };
+  const selectedMode = MODES.find((m) => m.value === mode) || MODES[0] || { value: "", label: "Auto" };
   const logoSrc = backend === "codex" ? "/logo-codex.svg" : "/logo.svg";
   const dirLabel = cwd ? cwd.split("/").pop() || cwd : "Select folder";
   const trimmedResumeSessionAt = useMemo(() => resumeSessionAt.trim(), [resumeSessionAt]);
@@ -838,6 +839,8 @@ export function HomePage() {
     }
   }, [gitRepoInfo]);
 
+  const creationProgress = useStore((s) => s.creationProgress);
+  const creationError = useStore((s) => s.creationError);
   const canSend = text.trim().length > 0 && !sending;
 
   return (
@@ -997,6 +1000,11 @@ export function HomePage() {
                 </div>
               </div>
             </div>
+
+            {/* Прогресс создания сессии */}
+            {sending && creationProgress && creationProgress.length > 0 && (
+              <SessionCreationProgress steps={creationProgress} error={creationError} />
+            )}
 
             {/* Below-card selectors */}
           <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-3 px-1 flex-wrap">

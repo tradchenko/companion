@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../store.js";
 import { sendToSession } from "../ws.js";
-import { getModelsForBackend } from "../utils/backends.js";
+import { getModelsForBackend, toModelOptions } from "../utils/backends.js";
 import type { ModelOption } from "../utils/backends.js";
 
 interface ModelSwitcherProps {
@@ -22,7 +22,12 @@ export function ModelSwitcher({ sessionId }: ModelSwitcherProps) {
   const backendType = sdkSession?.backendType ?? runtimeSession?.backend_type ?? "claude";
   // Prefer runtime model (from CLI init) over sdkSession model (from launch config)
   const currentModel = runtimeSession?.model ?? sdkSession?.model ?? "";
-  const models = getModelsForBackend(backendType);
+  // Для ACP: используем модели из runtime state (от ACP-агента), иначе статический список
+  const staticModels = getModelsForBackend(backendType);
+  const dynamicModels: ModelOption[] = runtimeSession?.availableModels
+     ? runtimeSession.availableModels.map((m, i) => ({ value: m.value, label: m.label, icon: ["◆", "●", "◕", "✦", "⚡", "■", "▲"][i % 7] }))
+     : [];
+  const models = staticModels.length > 0 ? staticModels : dynamicModels;
 
   // Find the matching model option, or build a fallback for custom models
   const currentOption: ModelOption | null =

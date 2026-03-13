@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
 import { captureException } from "../analytics.js";
@@ -15,6 +15,20 @@ export function ChatView({ sessionId }: { sessionId: string }) {
     (s) => s.connectionStatus.get(sessionId) ?? "disconnected"
   );
   const cliConnected = useStore((s) => s.cliConnected.get(sessionId) ?? false);
+  const [relaunching, setRelaunching] = useState(false);
+
+  // Сбрасываем состояние relaunching при восстановлении соединения
+  useEffect(() => {
+    if (cliConnected) setRelaunching(false);
+  }, [cliConnected]);
+
+  const handleRelaunch = useCallback(() => {
+    setRelaunching(true);
+    api.relaunchSession(sessionId).catch((err) => {
+      setRelaunching(false);
+      captureException(err);
+    });
+  }, [sessionId]);
 
   const perms = useMemo(
     () => (sessionPerms ? Array.from(sessionPerms.values()) : []),
@@ -23,18 +37,29 @@ export function ChatView({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* CLI disconnected banner */}
+      {/* CLI disconnected / reconnecting banner */}
       {connStatus === "connected" && !cliConnected && (
         <div className="px-4 py-2 bg-cc-warning/10 border-b border-cc-warning/20 text-center flex items-center justify-center gap-3">
-          <span className="text-xs text-cc-warning font-medium">
-            CLI disconnected
-          </span>
-          <button
-            onClick={() => api.relaunchSession(sessionId).catch(captureException)}
-            className="text-xs font-medium px-3 py-2 rounded-md bg-cc-warning/20 hover:bg-cc-warning/30 text-cc-warning transition-colors cursor-pointer"
-          >
-            Reconnect
-          </button>
+          {relaunching ? (
+            <>
+              <span className="w-3 h-3 border-2 border-cc-warning/40 border-t-cc-warning rounded-full animate-spin shrink-0" />
+              <span className="text-xs text-cc-warning font-medium">
+                Переподключение...
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-cc-warning font-medium">
+                CLI disconnected
+              </span>
+              <button
+                onClick={handleRelaunch}
+                className="text-xs font-medium px-3 py-2 rounded-md bg-cc-warning/20 hover:bg-cc-warning/30 text-cc-warning transition-colors cursor-pointer"
+              >
+                Reconnect
+              </button>
+            </>
+          )}
         </div>
       )}
 

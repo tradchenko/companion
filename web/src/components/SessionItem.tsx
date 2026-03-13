@@ -53,7 +53,16 @@ function StatusDot({ status }: { status: DerivedStatus }) {
   }
 }
 
-function BackendBadge({ type }: { type: "claude" | "codex" | "acp" }) {
+/** Короткие метки для известных ACP-агентов */
+const ACP_AGENT_LABELS: Record<string, string> = {
+  gemini: "GM",
+  qwen: "QW",
+  copilot: "CP",
+  "amazon-q": "AQ",
+  aider: "AI",
+};
+
+function BackendBadge({ type, agents }: { type: "claude" | "codex" | "acp"; agents?: string[] }) {
   if (type === "codex") {
     return (
       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500 leading-none">
@@ -62,9 +71,12 @@ function BackendBadge({ type }: { type: "claude" | "codex" | "acp" }) {
     );
   }
   if (type === "acp") {
+    // Определяем метку по ID агента
+    const agentId = agents?.[0] || "";
+    const label = ACP_AGENT_LABELS[agentId] || agentId.slice(0, 2).toUpperCase() || "ACP";
     return (
       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-500 leading-none">
-        ACP
+        {label}
       </span>
     );
   }
@@ -197,7 +209,7 @@ export function SessionItem({
         {/* Badges: backend type + Docker + Cron */}
         {!isEditing && (
           <span className="flex items-center gap-1 shrink-0">
-            <BackendBadge type={s.backendType} />
+            <BackendBadge type={s.backendType} agents={s.agents} />
             {s.isContainerized && (
               <span className="flex items-center px-1 py-0.5 rounded bg-blue-400/10" title="Docker">
                 <img src="/logo-docker.svg" alt="Docker logo" className="w-3 h-3" />

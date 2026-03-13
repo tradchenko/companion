@@ -147,7 +147,9 @@ describe('AcpAdapter', () => {
          if (initMsg && initMsg.type === 'session_init') {
             expect(initMsg.session.backend_type).toBe('acp');
             expect(initMsg.session.cwd).toBe('/tmp/test');
-            expect(initMsg.session.agentId).toBe('test-agent');
+            expect(initMsg.session.agents).toEqual(['test-agent']);
+            // agentId НЕ должен быть установлен — иначе сессия попадёт в "Agent Runs"
+            expect(initMsg.session.agentId).toBeUndefined();
          }
       });
 
@@ -306,6 +308,36 @@ describe('AcpAdapter', () => {
                expect(block.content).toBe('Файл прочитан успешно');
                expect(block.is_error).toBe(false);
             }
+         }
+      });
+
+      it('agent_message_chunk во вложенном формате params.update (реальный протокол)', async () => {
+         /**
+          * Реальный ACP-протокол (Gemini CLI и др.) присылает session/update
+          * в формате {sessionId: "...", update: {sessionUpdate: "...", ...}},
+          * а не плоским {sessionUpdate: "...", ...}.
+          * Проверяем что вложенный формат корректно обрабатывается.
+          */
+         const { mock, messages } = await createInitializedAdapter();
+         const beforeCount = messages.length;
+
+         // Формат как в реальном протоколе Gemini CLI
+         mock.fireNotification('session/update', {
+            sessionId: 'acp-session-123',
+            update: {
+               sessionUpdate: 'agent_message_chunk',
+               content: { type: 'text', text: 'Вложенный ответ' },
+            },
+         });
+
+         const streamEvents = messages.slice(beforeCount).filter((m) => m.type === 'stream_event');
+         expect(streamEvents).toHaveLength(1);
+
+         const evt = streamEvents[0];
+         if (evt.type === 'stream_event') {
+            const event = evt.event as { type: string; delta: { type: string; text: string } };
+            expect(event.type).toBe('content_block_delta');
+            expect(event.delta.text).toBe('Вложенный ответ');
          }
       });
 

@@ -22,6 +22,8 @@ export interface SessionItem {
   cronJobName?: string;
   agentId?: string;
   agentName?: string;
+  /** Список ACP-агентов (из SessionState.agents) */
+  agents?: string[];
 }
 
 export interface ProjectGroup {

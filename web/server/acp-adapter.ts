@@ -20,6 +20,7 @@ import type {
 } from './session-types.js';
 import type { RecorderManager } from './recorder.js';
 import { readMcpServersForAcp } from './mcp-config-reader.js';
+import { cacheAcpAgentModels } from './acp-registry.js';
 
 // ─── Интерфейс ACP-транспорта ────────────────────────────────────────────────
 // Если acp-transport.ts ещё не создан другим агентом, используем этот интерфейс.
@@ -127,6 +128,19 @@ type AcpSessionUpdate =
    | AcpPlan
    | AcpSessionInfoUpdate;
 
+/** Ответ session/new — содержит модели и режимы */
+interface AcpSessionNewResult {
+   sessionId: string;
+   models?: {
+      availableModels?: { modelId: string; name?: string; description?: string }[];
+      currentModelId?: string;
+   };
+   modes?: {
+      availableModes?: { id: string; name?: string; description?: string }[];
+      currentModeId?: string;
+   };
+}
+
 // ─── Таймауты RPC ───────────────────────────────────────────────────────────
 
 /** Таймаут по умолчанию для RPC-вызовов (мс) */
@@ -172,6 +186,12 @@ export class AcpAdapter {
 
    // Счётчик turns
    private numTurns = 0;
+
+   // Модели и режимы от ACP-агента
+   private availableModels: { value: string; label: string }[] = [];
+   private availableModes: { value: string; label: string }[] = [];
+   private currentModel = '';
+   private currentMode = '';
 
    constructor(transport: IAcpTransport, sessionId: string, options: AcpAdapterOptions) {
       this.transport = transport;
@@ -288,8 +308,11 @@ export class AcpAdapter {
       this.initInProgress = true;
 
       try {
+         // Прогресс: подключение
+         this.emitProgress(`Подключение к ${this.options.agentId}...`);
+
          // Шаг 1: Инициализация ACP-протокола
-         await this.transport.call(
+         const initResult = await this.transport.call(
             'initialize',
             {
                protocolVersion: 1,
@@ -303,9 +326,14 @@ export class AcpAdapter {
                },
             },
             RPC_METHOD_TIMEOUTS['initialize'],
-         );
+         ) as { agentInfo?: { name?: string; version?: string } } | undefined;
 
          this.connected = true;
+         const agentVersion = initResult?.agentInfo?.version;
+         const agentName = initResult?.agentInfo?.name || this.options.agentId;
+
+         // Прогресс: создание сессии
+         this.emitProgress(`${agentName}${agentVersion ? ` v${agentVersion}` : ''} — создание сессии...`);
 
          // Шаг 2: Создаём или загружаем сессию
          if (this.options.threadId) {
@@ -328,8 +356,29 @@ export class AcpAdapter {
                   mcpServers,
                },
                RPC_METHOD_TIMEOUTS['session/new'],
-            )) as { sessionId: string };
+            )) as AcpSessionNewResult;
             this.acpSessionId = newResult.sessionId;
+            // Парсим модели и режимы из ответа ACP-агента
+            if (newResult.models?.availableModels) {
+               this.availableModels = newResult.models.availableModels.map((m) => ({
+                  value: m.modelId,
+                  label: m.name || m.modelId,
+               }));
+               // Кешируем модели для консистентности на HomePage
+               cacheAcpAgentModels(this.options.agentId, this.availableModels);
+            }
+            if (newResult.models?.currentModelId) {
+               this.currentModel = newResult.models.currentModelId;
+            }
+            if (newResult.modes?.availableModes) {
+               this.availableModes = newResult.modes.availableModes.map((m) => ({
+                  value: m.id,
+                  label: m.name || m.id,
+               }));
+            }
+            if (newResult.modes?.currentModeId) {
+               this.currentMode = newResult.modes.currentModeId;
+            }
          }
 
          this.initialized = true;
@@ -338,7 +387,7 @@ export class AcpAdapter {
          // Уведомляем о метаданных сессии
          this.sessionMetaCb?.({
             cliSessionId: this.acpSessionId ?? undefined,
-            model: this.options.model,
+            model: this.currentModel || this.options.model,
             cwd: this.options.cwd,
          });
 
@@ -346,10 +395,10 @@ export class AcpAdapter {
          const state: SessionState = {
             session_id: this.sessionId,
             backend_type: 'acp',
-            model: this.options.model || '',
+            model: this.currentModel || this.options.model || '',
             cwd: this.options.cwd || '',
             tools: [],
-            permissionMode: 'default',
+            permissionMode: this.currentMode || 'default',
             claude_code_version: '',
             mcp_servers: [],
             agents: [this.options.agentId],
@@ -367,7 +416,10 @@ export class AcpAdapter {
             git_behind: 0,
             total_lines_added: 0,
             total_lines_removed: 0,
-            agentId: this.options.agentId,
+            // agentId НЕ ставим — иначе сессия попадёт в "Agent Runs" вместо группировки по проектам.
+            // Информация об ACP-агенте доступна через agents[] и backendType.
+            availableModels: this.availableModels.length ? this.availableModels : undefined,
+            availableModes: this.availableModes.length ? this.availableModes : undefined,
          };
 
          this.emit({ type: 'session_init', session: state });
@@ -391,7 +443,9 @@ export class AcpAdapter {
 
    private handleNotification(method: string, params: Record<string, unknown>): void {
       if (method === 'session/update') {
-         this.handleSessionUpdate(params as unknown as AcpSessionUpdate);
+         // ACP присылает {sessionId, update: {sessionUpdate: "...", ...}}
+         const update = (params.update ?? params) as unknown as AcpSessionUpdate;
+         this.handleSessionUpdate(update);
       }
    }
 
@@ -620,6 +674,9 @@ export class AcpAdapter {
          case 'interrupt':
             this.handleOutgoingInterrupt();
             return true;
+         case 'set_model':
+            this.handleOutgoingSetModel(msg);
+            return true;
          default:
             return false;
       }
@@ -721,6 +778,28 @@ export class AcpAdapter {
       this.transport.notify('session/cancel', { sessionId: this.acpSessionId });
    }
 
+   /** set_model → session/setModel RPC */
+   private async handleOutgoingSetModel(msg: { type: 'set_model'; model: string }): Promise<void> {
+      if (!this.acpSessionId) return;
+
+      try {
+         await this.transport.call(
+            'session/setModel',
+            { sessionId: this.acpSessionId, modelId: msg.model },
+            DEFAULT_RPC_TIMEOUT_MS,
+         );
+         this.currentModel = msg.model;
+         // Уведомляем браузер об изменении модели
+         this.emit({
+            type: 'session_update',
+            session: { model: msg.model },
+         });
+      } catch (err) {
+         console.error(`[acp-adapter] Ошибка session/setModel: ${err}`);
+         this.emit({ type: 'error', message: `Не удалось сменить модель: ${err}` });
+      }
+   }
+
    // ── Вспомогательные методы ────────────────────────────────────────────
 
    /** Сбросить очередь ожидающих сообщений */
@@ -742,5 +821,10 @@ export class AcpAdapter {
    /** Отправить сообщение в браузер */
    private emit(msg: BrowserIncomingMessage): void {
       this.browserMessageCb?.(msg);
+   }
+
+   /** Отправить краткое статусное сообщение в чат */
+   private emitProgress(text: string): void {
+      this.emit({ type: 'tool_use_summary', summary: text, tool_use_ids: [] });
    }
 }

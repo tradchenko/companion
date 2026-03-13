@@ -352,6 +352,10 @@ export interface SessionState {
   cronJobId?: string;
   /** Human-readable name of the cron job that spawned this session */
   cronJobName?: string;
+  /** Доступные модели (для ACP-агентов, возвращаются из session/new) */
+  availableModels?: { value: string; label: string }[];
+  /** Доступные режимы (для ACP-агентов, возвращаются из session/new) */
+  availableModes?: { value: string; label: string }[];
   /** If this session was spawned by an agent */
   agentId?: string;
   /** Human-readable name of the agent that spawned this session */
