@@ -9,12 +9,14 @@ import { MentionMenu } from "./MentionMenu.js";
 import { useMentionMenu } from "../utils/use-mention-menu.js";
 
 import { readFileAsBase64, type ImageAttachment } from "../utils/image.js";
+import { tryExecuteNativeCommand, getNativeCommandItems } from "../utils/native-commands.js";
 
 let idCounter = 0;
 
 interface CommandItem {
   name: string;
-  type: "command" | "skill";
+  type: "command" | "skill" | "native";
+  description?: string;
 }
 
 export function Composer({ sessionId }: { sessionId: string }) {
@@ -49,12 +51,21 @@ export function Composer({ sessionId }: { sessionId: string }) {
     enabled: !slashMenuOpen,
   });
 
-  // Build command list from session data
+  // Build command list from session data + native Companion commands
   const allCommands = useMemo<CommandItem[]>(() => {
     const cmds: CommandItem[] = [];
+    // Native Companion commands (показываются первыми)
+    const nativeCmds = getNativeCommandItems(sessionData?.backend_type);
+    for (const nc of nativeCmds) {
+      cmds.push({ name: nc.name, type: "native", description: nc.description });
+    }
+    // Команды агента
     if (sessionData?.slash_commands) {
       for (const cmd of sessionData.slash_commands) {
-        cmds.push({ name: cmd, type: "command" });
+        // Не дублируем если native-команда с таким именем уже есть
+        if (!cmds.some((c) => c.name === cmd)) {
+          cmds.push({ name: cmd, type: "command" });
+        }
       }
     }
     if (sessionData?.skills) {
@@ -63,7 +74,7 @@ export function Composer({ sessionId }: { sessionId: string }) {
       }
     }
     return cmds;
-  }, [sessionData?.slash_commands, sessionData?.skills]);
+  }, [sessionData?.slash_commands, sessionData?.skills, sessionData?.backend_type]);
 
   // Filter commands based on what the user typed after /
   const filteredCommands = useMemo(() => {
@@ -112,10 +123,26 @@ export function Composer({ sessionId }: { sessionId: string }) {
   }, [text]);
 
   const selectCommand = useCallback((cmd: CommandItem) => {
+    if (cmd.type === "native") {
+      // Native-команды — выполняем сразу без отправки агенту
+      const msg = `/${cmd.name}`;
+      setSlashMenuOpen(false);
+      setText("");
+      useStore.getState().appendMessage(sessionId, {
+        id: `user-${Date.now()}-${++idCounter}`,
+        role: "user",
+        content: msg,
+        timestamp: Date.now(),
+      });
+      tryExecuteNativeCommand(sessionId, msg);
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      textareaRef.current?.focus();
+      return;
+    }
     setText(`/${cmd.name} `);
     setSlashMenuOpen(false);
     textareaRef.current?.focus();
-  }, []);
+  }, [sessionId]);
 
   const selectPrompt = useCallback((prompt: SavedPrompt) => {
     const result = mention.selectPrompt(prompt);
@@ -134,6 +161,24 @@ export function Composer({ sessionId }: { sessionId: string }) {
   function handleSend() {
     const msg = text.trim();
     if (!msg || !isConnected) return;
+
+    // Перехватываем native Companion-команды
+    if (msg.startsWith('/') && tryExecuteNativeCommand(sessionId, msg)) {
+      // Показываем команду в чате как user message
+      useStore.getState().appendMessage(sessionId, {
+        id: `user-${Date.now()}-${++idCounter}`,
+        role: "user",
+        content: msg,
+        timestamp: Date.now(),
+      });
+      setText("");
+      setImages([]);
+      setSlashMenuOpen(false);
+      mention.setMentionMenuOpen(false);
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      textareaRef.current?.focus();
+      return;
+    }
 
     sendToSession(sessionId, {
       type: "user_message",
@@ -396,8 +441,14 @@ export function Composer({ sessionId }: { sessionId: string }) {
                       : "hover:bg-cc-hover/50"
                   }`}
                 >
-                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-cc-hover text-cc-muted shrink-0">
-                    {cmd.type === "skill" ? (
+                  <span className={`flex items-center justify-center w-6 h-6 rounded-md shrink-0 ${
+                    cmd.type === "native" ? "bg-cc-primary/10 text-cc-primary" : "bg-cc-hover text-cc-muted"
+                  }`}>
+                    {cmd.type === "native" ? (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V4zm3 1.5a.5.5 0 00-.354.854l2 2a.5.5 0 00.708 0l2-2A.5.5 0 009 5.5H5zm0 4a.5.5 0 000 1h6a.5.5 0 000-1H5z" />
+                      </svg>
+                    ) : cmd.type === "skill" ? (
                       <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
                         <path d="M8 1l1.796 3.64L14 5.255l-3 2.924.708 4.126L8 10.5l-3.708 1.805L5 8.18 2 5.255l4.204-.615L8 1z" />
                       </svg>
@@ -409,7 +460,10 @@ export function Composer({ sessionId }: { sessionId: string }) {
                   </span>
                   <div className="flex-1 min-w-0">
                     <span className="text-[13px] font-medium text-cc-fg">/{cmd.name}</span>
-                    <span className="ml-2 text-[11px] text-cc-muted">{cmd.type}</span>
+                    {cmd.description
+                      ? <span className="ml-2 text-[11px] text-cc-muted truncate">{cmd.description}</span>
+                      : <span className="ml-2 text-[11px] text-cc-muted">{cmd.type}</span>
+                    }
                   </div>
                 </button>
               ))}

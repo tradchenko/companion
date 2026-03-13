@@ -17,6 +17,7 @@ import type {
    SessionState,
    PermissionRequest,
    CLIResultMessage,
+   ContentBlock,
 } from './session-types.js';
 import type { RecorderManager } from './recorder.js';
 import { readMcpServersForAcp } from './mcp-config-reader.js';
@@ -120,19 +121,25 @@ interface AcpSessionInfoUpdate extends AcpSessionUpdateBase {
    updatedAt?: string;
 }
 
+interface AcpAvailableCommandsUpdate extends AcpSessionUpdateBase {
+   sessionUpdate: 'available_commands_update';
+   availableCommands: { name: string; description?: string; aliases?: string[]; input?: unknown }[];
+}
+
 type AcpSessionUpdate =
    | AcpAgentMessageChunk
    | AcpAgentThoughtChunk
    | AcpToolCall
    | AcpToolCallUpdate
    | AcpPlan
-   | AcpSessionInfoUpdate;
+   | AcpSessionInfoUpdate
+   | AcpAvailableCommandsUpdate;
 
 /** Ответ session/new — содержит модели и режимы */
 interface AcpSessionNewResult {
    sessionId: string;
    models?: {
-      availableModels?: { modelId: string; name?: string; description?: string }[];
+      availableModels?: { modelId: string; name?: string; description?: string; _meta?: { contextLimit?: number } }[];
       currentModelId?: string;
    };
    modes?: {
@@ -179,10 +186,14 @@ export class AcpAdapter {
 
    // Стриминг текста — аккумулируем чанки
    private streamingText = '';
+   private streamingThinkingText = '';
    private streamingMessageId: string = randomUUID();
 
-   // Маппинг permission request: наш requestId → jsonRpcId
-   private pendingPermissions = new Map<string, number | string>();
+   // Маппинг permission request: наш requestId → { jsonRpcId, options }
+   private pendingPermissions = new Map<
+      string,
+      { jsonRpcId: number | string; options: Array<{ optionId: string; kind?: string }> }
+   >();
 
    // Счётчик turns
    private numTurns = 0;
@@ -192,6 +203,14 @@ export class AcpAdapter {
    private availableModes: { value: string; label: string }[] = [];
    private currentModel = '';
    private currentMode = '';
+
+   // Аккумуляция usage из _meta (ACP агенты шлют в каждом agent_message_chunk)
+   private totalInputTokens = 0;
+   private totalOutputTokens = 0;
+   private contextLimit = 0;
+
+   // MCP-серверы, переданные агенту при создании сессии
+   private mcpServerNames: string[] = [];
 
    constructor(transport: IAcpTransport, sessionId: string, options: AcpAdapterOptions) {
       this.transport = transport;
@@ -309,7 +328,7 @@ export class AcpAdapter {
 
       try {
          // Прогресс: подключение
-         this.emitProgress(`Подключение к ${this.options.agentId}...`);
+         this.emitProgress(`Connecting to ${this.options.agentId}...`);
 
          // Шаг 1: Инициализация ACP-протокола
          const initResult = await this.transport.call(
@@ -333,22 +352,54 @@ export class AcpAdapter {
          const agentName = initResult?.agentInfo?.name || this.options.agentId;
 
          // Прогресс: создание сессии
-         this.emitProgress(`${agentName}${agentVersion ? ` v${agentVersion}` : ''} — создание сессии...`);
+         this.emitProgress(`${agentName}${agentVersion ? ` v${agentVersion}` : ''} — creating session...`);
 
          // Шаг 2: Создаём или загружаем сессию
          if (this.options.threadId) {
-            // Возобновляем существующую сессию
+            // Возобновляем существующую сессию — передаём cwd и mcpServers (Qwen требует)
+            const mcpServers = readMcpServersForAcp();
+            this.mcpServerNames = (mcpServers as Array<{ name?: string }>).map((s) => s.name || 'unknown');
             const loadResult = (await this.transport.call(
                'session/load',
                {
                   sessionId: this.options.threadId,
+                  cwd: this.options.cwd,
+                  mcpServers,
                },
                RPC_METHOD_TIMEOUTS['session/load'],
-            )) as { sessionId: string };
+            )) as AcpSessionNewResult;
             this.acpSessionId = loadResult.sessionId;
+            // Парсим модели и режимы из ответа session/load
+            if (loadResult.models?.availableModels) {
+               this.availableModels = loadResult.models.availableModels.map((m) => ({
+                  value: m.modelId,
+                  label: m.name || m.modelId,
+               }));
+               cacheAcpAgentModels(this.options.agentId, this.availableModels);
+               for (const m of loadResult.models.availableModels) {
+                  if (m._meta?.contextLimit && m._meta.contextLimit > 0) {
+                     this.contextLimit = m._meta.contextLimit;
+                     break;
+                  }
+               }
+            }
+            if (loadResult.models?.currentModelId) {
+               this.currentModel = loadResult.models.currentModelId;
+            }
+            if (loadResult.modes?.availableModes) {
+               this.availableModes = loadResult.modes.availableModes.map((m) => ({
+                  value: m.id,
+                  label: m.name || m.id,
+               }));
+            }
+            if (loadResult.modes?.currentModeId) {
+               this.currentMode = loadResult.modes.currentModeId;
+            }
          } else {
             // Создаём новую сессию, пробрасывая MCP-серверы из конфигов
             const mcpServers = readMcpServersForAcp();
+            // Сохраняем имена MCP-серверов для отображения в панели
+            this.mcpServerNames = (mcpServers as Array<{ name?: string }>).map((s) => s.name || 'unknown');
             const newResult = (await this.transport.call(
                'session/new',
                {
@@ -366,6 +417,13 @@ export class AcpAdapter {
                }));
                // Кешируем модели для консистентности на HomePage
                cacheAcpAgentModels(this.options.agentId, this.availableModels);
+               // Извлекаем contextLimit из метаданных модели
+               for (const m of newResult.models.availableModels) {
+                  if (m._meta?.contextLimit && m._meta.contextLimit > 0) {
+                     this.contextLimit = m._meta.contextLimit;
+                     break;
+                  }
+               }
             }
             if (newResult.models?.currentModelId) {
                this.currentModel = newResult.models.currentModelId;
@@ -400,7 +458,7 @@ export class AcpAdapter {
             tools: [],
             permissionMode: this.currentMode || 'default',
             claude_code_version: '',
-            mcp_servers: [],
+            mcp_servers: this.mcpServerNames.map((name) => ({ name, status: 'connected' })),
             agents: [this.options.agentId],
             slash_commands: [],
             skills: [],
@@ -427,7 +485,7 @@ export class AcpAdapter {
          // Сбрасываем очередь сообщений, накопившихся во время инициализации
          this.flushPendingOutgoing();
       } catch (err) {
-         const errorMsg = `Ошибка инициализации ACP: ${err}`;
+         const errorMsg = `ACP initialization error: ${err}`;
          console.error(`[acp-adapter] ${errorMsg}`);
          this.initFailed = true;
          this.connected = false;
@@ -444,9 +502,101 @@ export class AcpAdapter {
    private handleNotification(method: string, params: Record<string, unknown>): void {
       if (method === 'session/update') {
          // ACP присылает {sessionId, update: {sessionUpdate: "...", ...}}
-         const update = (params.update ?? params) as unknown as AcpSessionUpdate;
+         const rawUpdate = (params.update ?? params) as Record<string, unknown>;
+         // Извлекаем _meta.usage для трекинга токенов и контекста
+         this.extractUsageFromMeta(rawUpdate);
+         const update = rawUpdate as unknown as AcpSessionUpdate;
          this.handleSessionUpdate(update);
+      } else if (method === 'available_commands_update') {
+         // Qwen и другие агенты присылают slash-команды отдельным уведомлением
+         this.handleAvailableCommandsUpdate(params);
+      } else if (method.startsWith('_') && params.message) {
+         // Vendor-specific уведомления (напр. _qwencode/slash_command) — выводим message как текст
+         this.handleVendorNotification(method, params);
       }
+   }
+
+   /** Обработка vendor-specific уведомлений с текстовым сообщением */
+   private handleVendorNotification(_method: string, params: Record<string, unknown>): void {
+      const text = String(params.message ?? '');
+      if (!text) return;
+
+      // Сбрасываем накопленный стриминг перед выводом
+      this.flushStreamingText();
+
+      const msgId = randomUUID();
+      this.emit({
+         type: 'assistant',
+         message: {
+            id: msgId,
+            type: 'message',
+            role: 'assistant',
+            model: this.currentModel,
+            content: [{ type: 'text', text }],
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+         },
+         parent_tool_use_id: null,
+      });
+   }
+
+   /** Extract usage from _meta in ACP update and emit token details */
+   private extractUsageFromMeta(rawUpdate: Record<string, unknown>): void {
+      const meta = rawUpdate._meta as {
+         usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number; thoughtTokens?: number; cachedReadTokens?: number };
+      } | undefined;
+      if (!meta?.usage) return;
+
+      const { inputTokens, outputTokens, totalTokens, thoughtTokens, cachedReadTokens } = meta.usage;
+      if (inputTokens != null) this.totalInputTokens = inputTokens;
+      if (outputTokens != null) this.totalOutputTokens += outputTokens;
+
+      // Calculate context_used_percent and emit token details
+      const pct = this.contextLimit > 0
+         ? Math.round(((this.totalInputTokens + this.totalOutputTokens) / this.contextLimit) * 100)
+         : 0;
+
+      this.emit({
+         type: 'session_update',
+         session: {
+            context_used_percent: Math.max(0, Math.min(pct, 100)),
+            num_turns: this.numTurns,
+            acp_token_details: {
+               inputTokens: this.totalInputTokens,
+               outputTokens: this.totalOutputTokens,
+               thoughtTokens: thoughtTokens ?? 0,
+               cachedReadTokens: cachedReadTokens ?? 0,
+               totalTokens: totalTokens ?? (this.totalInputTokens + this.totalOutputTokens),
+               modelContextWindow: this.contextLimit,
+            },
+         },
+      });
+   }
+
+   /** available_commands_update (из session/update) → slash-команды в браузер */
+   private handleAvailableCommandsUpdateFromSession(update: AcpAvailableCommandsUpdate): void {
+      const commands = update.availableCommands;
+      if (!commands?.length) return;
+      this.emitSlashCommands(commands);
+   }
+
+   /** available_commands_update (как отдельное уведомление) → slash-команды в браузер */
+   private handleAvailableCommandsUpdate(params: Record<string, unknown>): void {
+      const commands = (params.availableCommands ?? params.commands) as Array<{ name: string; description?: string; aliases?: string[] }> | undefined;
+      if (!commands?.length) return;
+      this.emitSlashCommands(commands);
+   }
+
+   /** Общий хелпер для отправки slash-команд в браузер */
+   private emitSlashCommands(commands: Array<{ name: string; description?: string; aliases?: string[] }>): void {
+      const slashCommands = commands.map((c) => {
+         const aliases = c.aliases?.length ? ` (${c.aliases.join(', ')})` : '';
+         return `${c.name}${aliases}`;
+      });
+      this.emit({
+         type: 'session_update',
+         session: { slash_commands: slashCommands },
+      });
    }
 
    /** Трансляция session/update уведомлений в BrowserIncomingMessage */
@@ -470,6 +620,9 @@ export class AcpAdapter {
          case 'session_info_update':
             this.handleSessionInfoUpdate(update);
             break;
+         case 'available_commands_update':
+            this.handleAvailableCommandsUpdateFromSession(update as AcpAvailableCommandsUpdate);
+            break;
       }
    }
 
@@ -488,6 +641,7 @@ export class AcpAdapter {
 
    /** agent_thought_chunk → stream_event для thinking/reasoning */
    private handleAgentThoughtChunk(update: AcpAgentThoughtChunk): void {
+      this.streamingThinkingText += update.content.text;
       this.emit({
          type: 'stream_event',
          event: {
@@ -498,30 +652,54 @@ export class AcpAdapter {
       });
    }
 
-   /** tool_call → assistant сообщение с tool_use блоком */
-   private handleToolCall(update: AcpToolCall): void {
+   /**
+    * Сбросить накопленный стриминг-текст как финальное assistant-сообщение.
+    * Вызывается перед tool_call, чтобы thinking/text не потерялись.
+    */
+   private flushStreamingText(): void {
+      const hasText = this.streamingText.trim().length > 0;
+      const hasThinking = this.streamingThinkingText.trim().length > 0;
+      if (!hasText && !hasThinking) return;
+
+      const contentBlocks: ContentBlock[] = [];
+      if (hasThinking) {
+         contentBlocks.push({ type: 'thinking' as const, thinking: this.streamingThinkingText });
+      }
+      if (hasText) {
+         contentBlocks.push({ type: 'text' as const, text: this.streamingText });
+      }
+
       this.emit({
          type: 'assistant',
          message: {
-            id: `msg_${update.toolCallId}`,
+            id: `msg_${this.streamingMessageId}`,
             type: 'message',
             role: 'assistant',
             model: this.options.model || '',
-            content: [
-               {
-                  type: 'tool_use',
-                  id: update.toolCallId,
-                  name: update.title,
-                  input: {
-                     kind: update.kind || '',
-                     status: update.status,
-                  },
-               },
-            ],
+            content: contentBlocks,
             stop_reason: null,
             usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
          },
          parent_tool_use_id: null,
+      });
+
+      // Сбрасываем и генерируем новый ID для следующего блока
+      this.streamingText = '';
+      this.streamingThinkingText = '';
+      this.streamingMessageId = randomUUID();
+   }
+
+   /** tool_call → progress summary (не assistant message, чтобы не создавать пустые боксы) */
+   private handleToolCall(update: AcpToolCall): void {
+      // Сбрасываем накопленный текст/мысли перед tool_call
+      this.flushStreamingText();
+
+      // Отображаем tool_call как прогресс-индикатор, а не как message bubble
+      const title = update.title && update.title !== '{}' ? update.title : update.kind || 'tool';
+      this.emit({
+         type: 'tool_use_summary',
+         summary: title,
+         tool_use_ids: [update.toolCallId],
       });
    }
 
@@ -564,7 +742,7 @@ export class AcpAdapter {
             type: 'message',
             role: 'assistant',
             model: this.options.model || '',
-            content: [{ type: 'text', text: `План:\n${planText}` }],
+            content: [{ type: 'text', text: `Plan:\n${planText}` }],
             stop_reason: null,
             usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
          },
@@ -612,10 +790,10 @@ export class AcpAdapter {
    private handlePermissionRequest(jsonRpcId: number | string, params: Record<string, unknown>): void {
       const requestId = randomUUID();
       const toolCall = params.toolCall as { title?: string; kind?: string; toolCallId?: string } | undefined;
-      const options = params.options as string[] | undefined;
+      const options = params.options as Array<{ optionId: string; name?: string; kind?: string }> | undefined;
 
-      // Сохраняем маппинг наш requestId → jsonRpcId
-      this.pendingPermissions.set(requestId, jsonRpcId);
+      // Сохраняем маппинг наш requestId → { jsonRpcId, options } для корректного ответа
+      this.pendingPermissions.set(requestId, { jsonRpcId, options: options ?? [] });
 
       const permRequest: PermissionRequest = {
          request_id: requestId,
@@ -638,7 +816,7 @@ export class AcpAdapter {
          const content = await readFile(path, 'utf-8');
          await this.transport.respond(id, { content });
       } catch (err) {
-         await this.transport.respond(id, { error: `Не удалось прочитать файл: ${err}` });
+         await this.transport.respond(id, { error: `Failed to read file: ${err}` });
       }
    }
 
@@ -651,7 +829,7 @@ export class AcpAdapter {
          await writeFile(path, content, 'utf-8');
          await this.transport.respond(id, { success: true });
       } catch (err) {
-         await this.transport.respond(id, { error: `Не удалось записать файл: ${err}` });
+         await this.transport.respond(id, { error: `Failed to write file: ${err}` });
       }
    }
 
@@ -685,12 +863,13 @@ export class AcpAdapter {
    /** user_message → session/prompt */
    private async handleOutgoingUserMessage(msg: { type: 'user_message'; content: string; images?: { media_type: string; data: string }[] }): Promise<void> {
       if (!this.acpSessionId) {
-         this.emit({ type: 'error', message: 'ACP-сессия ещё не создана' });
+         this.emit({ type: 'error', message: 'ACP session not initialized' });
          return;
       }
 
       // Сбрасываем стриминг перед новым промптом
       this.streamingText = '';
+      this.streamingThinkingText = '';
       this.streamingMessageId = randomUUID();
       this.numTurns++;
 
@@ -707,24 +886,10 @@ export class AcpAdapter {
             RPC_METHOD_TIMEOUTS['session/prompt'],
          )) as { stopReason?: string };
 
-         // Если есть накопленный текст — отправляем финальное assistant-сообщение
-         if (this.streamingText) {
-            this.emit({
-               type: 'assistant',
-               message: {
-                  id: this.streamingMessageId,
-                  type: 'message',
-                  role: 'assistant',
-                  model: this.options.model || '',
-                  content: [{ type: 'text', text: this.streamingText }],
-                  stop_reason: result.stopReason || 'end_turn',
-                  usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
-               },
-               parent_tool_use_id: null,
-            });
-         }
+         // Сбрасываем накопленный стриминг как финальное сообщение
+         this.flushStreamingText();
 
-         // Отправляем result
+         // Отправляем result с реальными данными usage
          const resultMsg: CLIResultMessage = {
             type: 'result',
             subtype: result.stopReason === 'cancelled' ? 'error_during_execution' : 'success',
@@ -734,7 +899,12 @@ export class AcpAdapter {
             num_turns: this.numTurns,
             total_cost_usd: 0,
             stop_reason: result.stopReason || 'end_turn',
-            usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+            usage: {
+               input_tokens: this.totalInputTokens,
+               output_tokens: this.totalOutputTokens,
+               cache_creation_input_tokens: 0,
+               cache_read_input_tokens: 0,
+            },
             uuid: randomUUID(),
             session_id: this.sessionId,
          };
@@ -744,32 +914,37 @@ export class AcpAdapter {
          // Сбрасываем стриминг
          this.streamingText = '';
       } catch (err) {
-         this.emit({ type: 'error', message: `Ошибка session/prompt: ${err}` });
+         this.emit({ type: 'error', message: `session/prompt error: ${err}` });
       } finally {
          // Статус "idle"
          this.emit({ type: 'status_change', status: 'idle' });
       }
    }
 
-   /** permission_response → ответ на pending permission request */
+   /** permission_response → ответ на pending permission request с реальными optionId от агента */
    private handleOutgoingPermissionResponse(msg: { type: 'permission_response'; request_id: string; behavior: 'allow' | 'deny' }): void {
-      const jsonRpcId = this.pendingPermissions.get(msg.request_id);
-      if (jsonRpcId === undefined) {
-         console.warn(`[acp-adapter] Неизвестный permission request_id: ${msg.request_id}`);
+      const pending = this.pendingPermissions.get(msg.request_id);
+      if (!pending) {
+         console.warn(`[acp-adapter] Unknown permission request_id: ${msg.request_id}`);
          return;
       }
 
       this.pendingPermissions.delete(msg.request_id);
 
+      // Ищем подходящий optionId из options, присланных агентом
+      // Gemini: proceed_once/cancel, Qwen: allow_once/reject_once, и т.д.
+      let optionId: string;
       if (msg.behavior === 'allow') {
-         this.transport.respond(jsonRpcId, {
-            outcome: { outcome: 'selected', optionId: 'allow_once' },
-         });
+         const match = pending.options.find((o) => o.kind === 'allow_once');
+         optionId = match?.optionId ?? 'proceed_once';
       } else {
-         this.transport.respond(jsonRpcId, {
-            outcome: { outcome: 'selected', optionId: 'reject_once' },
-         });
+         const match = pending.options.find((o) => o.kind === 'reject_once');
+         optionId = match?.optionId ?? 'cancel';
       }
+
+      this.transport.respond(pending.jsonRpcId, {
+         outcome: { outcome: 'selected', optionId },
+      });
    }
 
    /** interrupt → session/cancel уведомление */
@@ -796,7 +971,7 @@ export class AcpAdapter {
          });
       } catch (err) {
          console.error(`[acp-adapter] Ошибка session/setModel: ${err}`);
-         this.emit({ type: 'error', message: `Не удалось сменить модель: ${err}` });
+         this.emit({ type: 'error', message: `Failed to switch model: ${err}` });
       }
    }
 

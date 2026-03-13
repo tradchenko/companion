@@ -494,7 +494,7 @@ export function McpSection({ sessionId }: { sessionId: string }) {
       {isReadOnly && displayServers.length > 0 && (
         <div className="px-3 pb-1">
           <p className="text-[10px] text-cc-muted/70 text-center">
-            Управление MCP доступно только для Codex
+            MCP management is only available for Codex
           </p>
         </div>
       )}
@@ -527,7 +527,7 @@ export function McpSection({ sessionId }: { sessionId: string }) {
         <div className="px-3 py-3">
           <p className="text-[11px] text-cc-muted text-center">
             {isReadOnly
-              ? "Нет MCP серверов."
+              ? "No MCP servers."
               : (
                   <>
                     No MCP servers configured.{" "}

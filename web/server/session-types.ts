@@ -352,6 +352,15 @@ export interface SessionState {
   cronJobId?: string;
   /** Human-readable name of the cron job that spawned this session */
   cronJobName?: string;
+  // ACP-specific token details (forwarded from _meta.usage in session/update)
+  acp_token_details?: {
+    inputTokens: number;
+    outputTokens: number;
+    thoughtTokens: number;
+    cachedReadTokens: number;
+    totalTokens: number;
+    modelContextWindow: number;
+  };
   /** Доступные модели (для ACP-агентов, возвращаются из session/new) */
   availableModels?: { value: string; label: string }[];
   /** Доступные режимы (для ACP-агентов, возвращаются из session/new) */

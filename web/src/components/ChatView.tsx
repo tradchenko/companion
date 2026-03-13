@@ -44,7 +44,7 @@ export function ChatView({ sessionId }: { sessionId: string }) {
             <>
               <span className="w-3 h-3 border-2 border-cc-warning/40 border-t-cc-warning rounded-full animate-spin shrink-0" />
               <span className="text-xs text-cc-warning font-medium">
-                Переподключение...
+                Reconnecting...
               </span>
             </>
           ) : (
