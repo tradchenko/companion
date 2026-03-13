@@ -34,6 +34,7 @@ import { registerSettingsRoutes } from "./routes/settings-routes.js";
 import { registerTailscaleRoutes } from "./routes/tailscale-routes.js";
 import { registerGitRoutes } from "./routes/git-routes.js";
 import { registerSystemRoutes } from "./routes/system-routes.js";
+import { readMcpServersForAcp } from "./mcp-config-reader.js";
 import { registerLinearRoutes, transitionLinearIssue, fetchLinearTeamStates } from "./routes/linear-routes.js";
 import { registerLinearConnectionRoutes } from "./routes/linear-connection-routes.js";
 import { getConnection, listConnections, resolveApiKey } from "./linear-connections.js";
@@ -2009,6 +2010,12 @@ export function createRoutes(
   registerSkillRoutes(api);
   registerCronRoutes(api, cronScheduler);
   registerAgentRoutes(api, agentExecutor);
+
+  // ─── MCP серверы для ACP-агентов ─────────────────────────────────
+  api.get('/mcp-servers', (c) => {
+    const servers = readMcpServersForAcp();
+    return c.json(servers);
+  });
 
   // ─── Worktree cleanup helper ────────────────────────────────────
 

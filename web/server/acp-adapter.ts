@@ -19,6 +19,7 @@ import type {
    CLIResultMessage,
 } from './session-types.js';
 import type { RecorderManager } from './recorder.js';
+import { readMcpServersForAcp } from './mcp-config-reader.js';
 
 // ─── Интерфейс ACP-транспорта ────────────────────────────────────────────────
 // Если acp-transport.ts ещё не создан другим агентом, используем этот интерфейс.
@@ -318,12 +319,13 @@ export class AcpAdapter {
             )) as { sessionId: string };
             this.acpSessionId = loadResult.sessionId;
          } else {
-            // Создаём новую сессию
+            // Создаём новую сессию, пробрасывая MCP-серверы из конфигов
+            const mcpServers = readMcpServersForAcp();
             const newResult = (await this.transport.call(
                'session/new',
                {
                   cwd: this.options.cwd,
-                  mcpServers: [],
+                  mcpServers,
                },
                RPC_METHOD_TIMEOUTS['session/new'],
             )) as { sessionId: string };
