@@ -1,12 +1,12 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import type {
   SessionState,
   BrowserIncomingMessage,
   PermissionRequest,
   BufferedBrowserEvent,
 } from "./session-types.js";
+import { COMPANION_HOME } from "./paths.js";
 
 // ─── Serializable session shape ─────────────────────────────────────────────
 
@@ -25,7 +25,8 @@ export interface PersistedSession {
 
 // ─── Store ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_DIR = join(tmpdir(), "vibe-sessions");
+/** Персистентное хранение в ~/.companion/sessions/ (переживает перезагрузку ОС). */
+const DEFAULT_DIR = join(COMPANION_HOME, "sessions");
 
 export class SessionStore {
   private dir: string;

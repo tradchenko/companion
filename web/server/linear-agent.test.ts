@@ -42,6 +42,7 @@ function makeSettings(overrides: Partial<CompanionSettings> = {}): CompanionSett
     publicUrl: "",
     updateChannel: "stable",
     acpBinaryPaths: {},
+    sessionStoragePath: "",
     updatedAt: 0,
     ...overrides,
   };

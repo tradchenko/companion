@@ -27,6 +27,7 @@ export function registerSettingsRoutes(api: Hono): void {
       publicUrl: settings.publicUrl,
       updateChannel: settings.updateChannel,
       acpBinaryPaths: settings.acpBinaryPaths,
+      sessionStoragePath: settings.sessionStoragePath,
     });
   });
 
@@ -93,6 +94,9 @@ export function registerSettingsRoutes(api: Hono): void {
         }
       }
     }
+    if (body.sessionStoragePath !== undefined && typeof body.sessionStoragePath !== "string") {
+      return c.json({ error: "sessionStoragePath must be a string" }, 400);
+    }
     if (body.linearOAuthClientId !== undefined && typeof body.linearOAuthClientId !== "string") {
       return c.json({ error: "linearOAuthClientId must be a string" }, 400);
     }
@@ -114,7 +118,8 @@ export function registerSettingsRoutes(api: Hono): void {
       || body.aiValidationAutoDeny !== undefined
       || body.publicUrl !== undefined
       || body.updateChannel !== undefined
-      || body.acpBinaryPaths !== undefined;
+      || body.acpBinaryPaths !== undefined
+      || body.sessionStoragePath !== undefined;
     if (!hasAnyField) {
       return c.json({ error: "At least one settings field is required" }, 400);
     }

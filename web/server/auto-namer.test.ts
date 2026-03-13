@@ -35,6 +35,7 @@ beforeEach(() => {
     publicUrl: "",
     updateChannel: "stable",
     acpBinaryPaths: {},
+    sessionStoragePath: "",
     updatedAt: 0,
   });
 });

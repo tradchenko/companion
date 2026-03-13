@@ -60,6 +60,11 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ valid: boolean; error?: string } | null>(null);
 
+  // Хранилище сессий
+  const [sessionStoragePath, setSessionStoragePath] = useState("");
+  const [sessionPathSaving, setSessionPathSaving] = useState(false);
+  const [sessionPathSaved, setSessionPathSaved] = useState(false);
+
   // ACP-агенты
   const [acpAgents, setAcpAgents] = useState<AcpAgentInfo[]>([]);
   const [acpBinaryPaths, setAcpBinaryPaths] = useState<Record<string, string>>({});
@@ -138,6 +143,7 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
           useStore.getState().setPublicUrl(s.publicUrl);
         }
         if (s.acpBinaryPaths) setAcpBinaryPaths(s.acpBinaryPaths);
+        if (typeof s.sessionStoragePath === "string") setSessionStoragePath(s.sessionStoragePath);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -378,6 +384,45 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
                 <p className="text-xs text-cc-muted px-1">
                   Last commit shows only uncommitted changes. Default branch shows all changes since diverging from main.
                 </p>
+
+                {/* Хранилище сессий */}
+                <div className="pt-2 border-t border-cc-border">
+                  <label className="block text-xs font-medium text-cc-fg mb-1.5" htmlFor="session-storage-path">
+                    Session Storage Path
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="session-storage-path"
+                      type="text"
+                      value={sessionStoragePath}
+                      onChange={(e) => setSessionStoragePath(e.target.value)}
+                      placeholder="~/.companion/sessions (default)"
+                      className="flex-1 rounded-lg bg-cc-hover border border-cc-border px-3 py-2 text-sm text-cc-fg placeholder:text-cc-muted focus:outline-none focus:ring-1 focus:ring-cc-primary"
+                    />
+                    <button
+                      type="button"
+                      disabled={sessionPathSaving}
+                      onClick={async () => {
+                        setSessionPathSaving(true);
+                        try {
+                          await api.updateSettings({ sessionStoragePath: sessionStoragePath.trim() });
+                          setSessionPathSaved(true);
+                          setTimeout(() => setSessionPathSaved(false), 1800);
+                        } catch (err: unknown) {
+                          setError(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setSessionPathSaving(false);
+                        }
+                      }}
+                      className="px-3 py-2 rounded-lg text-xs font-medium bg-cc-primary text-white hover:bg-cc-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      {sessionPathSaving ? "..." : sessionPathSaved ? "Saved" : "Apply"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-cc-muted px-1 mt-1">
+                    Sessions are stored persistently in ~/.companion/sessions/ by default. Override to use a custom path. Requires restart.
+                  </p>
+                </div>
               </div>
             </section>
 

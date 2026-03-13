@@ -417,6 +417,7 @@ export interface AppSettings {
   publicUrl: string;
   updateChannel: "stable" | "prerelease";
   acpBinaryPaths: Record<string, string>;
+  sessionStoragePath: string;
 }
 
 export interface AcpAgentInfo {
@@ -937,6 +938,7 @@ export const api = {
     publicUrl?: string;
     updateChannel?: "stable" | "prerelease";
     acpBinaryPaths?: Record<string, string>;
+    sessionStoragePath?: string;
   }) => put<AppSettings>("/settings", data),
   verifyAnthropicKey: (apiKey: string) =>
     post<{ valid: boolean; error?: string }>("/settings/anthropic/verify", { apiKey }),

@@ -101,6 +101,7 @@ vi.mock("./settings-manager.js", () => ({
     publicUrl: "",
     updateChannel: "stable",
     acpBinaryPaths: {},
+    sessionStoragePath: "",
     updatedAt: 0,
   })),
   updateSettings: vi.fn((patch) => ({
@@ -1625,6 +1626,7 @@ describe("POST /api/sessions/:id/archive — Linear transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive", {
@@ -1668,6 +1670,7 @@ describe("POST /api/sessions/:id/archive — Linear transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive", {
@@ -1704,6 +1707,7 @@ describe("POST /api/sessions/:id/archive — Linear transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive", {
@@ -1788,6 +1792,7 @@ describe("GET /api/sessions/:id/archive-info", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive-info", { method: "GET" });
@@ -2700,6 +2705,7 @@ describe("GET /api/linear/issues", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2733,6 +2739,7 @@ describe("GET /api/linear/issues", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -2819,6 +2826,7 @@ describe("GET /api/linear/issues", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -2912,6 +2920,7 @@ describe("GET /api/linear/issues", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -2970,6 +2979,7 @@ describe("GET /api/linear/connection", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -3003,6 +3013,7 @@ describe("GET /api/linear/connection", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -3058,6 +3069,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -3095,6 +3107,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -3131,6 +3144,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -3169,6 +3183,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -3241,6 +3256,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -3292,6 +3308,7 @@ describe("GET /api/linear/projects", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -3325,6 +3342,7 @@ describe("GET /api/linear/projects", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -3388,6 +3406,7 @@ describe("GET /api/linear/project-issues", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -3421,6 +3440,7 @@ describe("GET /api/linear/project-issues", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 
@@ -3499,6 +3519,7 @@ describe("GET /api/linear/project-issues", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
 

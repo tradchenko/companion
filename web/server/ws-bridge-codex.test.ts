@@ -139,6 +139,7 @@ describe("attachCodexAdapterHandlers", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
   });
@@ -1070,6 +1071,7 @@ describe("attachCodexAdapterHandlers", () => {
         publicUrl: "",
         updateChannel: "stable",
         acpBinaryPaths: {},
+        sessionStoragePath: "",
         updatedAt: 0,
       });
     }
@@ -1244,6 +1246,7 @@ describe("attachCodexAdapterHandlers", () => {
         publicUrl: "",
         updateChannel: "stable",
         acpBinaryPaths: {},
+        sessionStoragePath: "",
         updatedAt: 0,
       });
 
@@ -1288,6 +1291,7 @@ describe("attachCodexAdapterHandlers", () => {
         publicUrl: "",
         updateChannel: "stable",
         acpBinaryPaths: {},
+        sessionStoragePath: "",
         updatedAt: 0,
       });
 
@@ -1397,6 +1401,7 @@ describe("attachCodexAdapterHandlers", () => {
         publicUrl: "",
         updateChannel: "stable",
         acpBinaryPaths: {},
+        sessionStoragePath: "",
         updatedAt: 0,
       });
 
@@ -1525,6 +1530,7 @@ describe("attachCodexAdapterHandlers", () => {
         publicUrl: "",
         updateChannel: "stable",
         acpBinaryPaths: {},
+        sessionStoragePath: "",
         updatedAt: 0,
       });
 

@@ -50,7 +50,9 @@ import { DEFAULT_PORT_DEV, DEFAULT_PORT_PROD } from "./constants.js";
 const defaultPort = process.env.NODE_ENV === "production" ? DEFAULT_PORT_PROD : DEFAULT_PORT_DEV;
 const port = Number(process.env.PORT) || defaultPort;
 const host = process.env.HOST || "0.0.0.0";
-const sessionStore = new SessionStore(process.env.COMPANION_SESSION_DIR);
+// Приоритет: env COMPANION_SESSION_DIR → настройка sessionStoragePath → дефолт (~/.companion/sessions/)
+const sessionDir = process.env.COMPANION_SESSION_DIR || getSettings().sessionStoragePath || undefined;
+const sessionStore = new SessionStore(sessionDir);
 const wsBridge = new WsBridge();
 const launcher = new CliLauncher(port);
 const worktreeTracker = new WorktreeTracker();

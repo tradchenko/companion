@@ -46,6 +46,7 @@ describe("settings-manager", () => {
       publicUrl: "",
       updateChannel: "stable",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updatedAt: 0,
     });
   });
@@ -98,6 +99,7 @@ describe("settings-manager", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updateChannel: "stable",
       updatedAt: 123,
     });
@@ -175,6 +177,7 @@ describe("settings-manager", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       acpBinaryPaths: {},
+      sessionStoragePath: "",
       updateChannel: "stable",
       updatedAt: 0,
     });

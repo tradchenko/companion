@@ -39,6 +39,8 @@ export interface CompanionSettings {
   updateChannel: UpdateChannel;
   /** Кастомные пути к бинарникам ACP-агентов: agentId → путь */
   acpBinaryPaths: Record<string, string>;
+  /** Путь к директории хранения сессий (по умолчанию ~/.companion/sessions/) */
+  sessionStoragePath?: string;
   updatedAt: number;
 }
 
@@ -68,6 +70,7 @@ let settings: CompanionSettings = {
   publicUrl: "",
   updateChannel: "stable",
   acpBinaryPaths: {},
+  sessionStoragePath: "",
   updatedAt: 0,
 };
 
@@ -108,6 +111,7 @@ function normalize(raw: Partial<CompanionSettings> | null | undefined): Companio
     publicUrl: typeof raw?.publicUrl === "string" ? raw.publicUrl.trim().replace(/\/+$/, "") : "",
     updateChannel: raw?.updateChannel === "prerelease" ? "prerelease" : "stable",
     acpBinaryPaths: normalizeAcpBinaryPaths(raw?.acpBinaryPaths),
+    sessionStoragePath: typeof raw?.sessionStoragePath === "string" ? raw.sessionStoragePath.trim() : "",
     updatedAt: typeof raw?.updatedAt === "number" ? raw.updatedAt : 0,
   };
 }
