@@ -485,18 +485,13 @@ describe("launch", () => {
       codexSandbox: "workspace-write",
     });
 
-    // Первый вызов — основной Codex-процесс, запускается напрямую через binary
+    // Когда рядом с codex есть sibling node, spawn использует [node, codexScript, ...args]
     const [mainCmd] = mockSpawn.mock.calls[0];
-    expect(mainCmd[0]).toBe(fakeCodex);
+    expect(mainCmd[0]).toBe(fakeNode);
+    expect(mainCmd[1]).toContain("codex");
     expect(mainCmd).toContain("app-server");
     expect(mainCmd).toContain("--enable");
     expect(mainCmd).toContain("multi_agent");
-
-    // Если proxy был вызван — проверяем использование sibling node
-    if (mockSpawn.mock.calls.length > 1) {
-      const [proxyCmd] = mockSpawn.mock.calls[1];
-      expect(proxyCmd[0]).toBe(fakeNode);
-    }
 
     // Cleanup
     rmSync(tmpBinDir, { recursive: true, force: true });

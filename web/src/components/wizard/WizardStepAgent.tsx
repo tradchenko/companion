@@ -11,7 +11,7 @@ interface WizardStepAgentProps {
     id: string;
     name: string;
     prompt: string;
-    backendType: "claude" | "codex";
+    backendType: "claude" | "codex" | "acp";
     model: string;
     cwd: string;
   };
@@ -28,7 +28,7 @@ export function WizardStepAgent({ onNext, onBack, existingAgent }: WizardStepAge
 
   const [name, setName] = useState(existingAgent?.name ?? "Linear Agent");
   const [prompt, setPrompt] = useState(existingAgent?.prompt ?? DEFAULT_PROMPT);
-  const [backend, setBackend] = useState<"claude" | "codex">(existingAgent?.backendType ?? "claude");
+  const [backend, setBackend] = useState<"claude" | "codex" | "acp">(existingAgent?.backendType ?? "claude");
   const [model, setModel] = useState(existingAgent?.model ?? "");
   const [cwd, setCwd] = useState(existingAgent?.cwd ?? "");
   const [showFolderPicker, setShowFolderPicker] = useState(false);

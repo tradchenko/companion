@@ -97,6 +97,7 @@ vi.mock("./settings-manager.js", () => ({
     aiValidationAutoDeny: false,
     publicUrl: "",
     updateChannel: "stable",
+    acpBinaryPaths: {},
     dockerAutoUpdate: false,
     updatedAt: 0,
   })),
@@ -121,6 +122,7 @@ vi.mock("./settings-manager.js", () => ({
     aiValidationAutoDeny: patch.aiValidationAutoDeny ?? false,
     publicUrl: patch.publicUrl ?? "",
     updateChannel: patch.updateChannel ?? "stable",
+    acpBinaryPaths: patch.acpBinaryPaths ?? {},
     dockerAutoUpdate: patch.dockerAutoUpdate ?? false,
     updatedAt: Date.now(),
   })),
@@ -1136,6 +1138,7 @@ describe("GET /api/sessions/:id/archive-info", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -1504,6 +1507,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 123,
     });
@@ -1529,6 +1533,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
     });
   });
@@ -1555,6 +1560,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 123,
     });
@@ -1580,6 +1586,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
     });
   });
@@ -1607,6 +1614,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "https://example.com",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 100,
     });
@@ -1642,6 +1650,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 456,
     });
@@ -1690,6 +1699,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
     });
   });
@@ -1716,6 +1726,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 789,
     });
@@ -1760,6 +1771,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 999,
     });
@@ -1867,6 +1879,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "https://my-server.com",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 500,
     });
@@ -2043,6 +2056,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2076,6 +2090,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2162,6 +2177,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2255,6 +2271,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2313,6 +2330,7 @@ describe("GET /api/linear/connection", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2346,6 +2364,7 @@ describe("GET /api/linear/connection", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2401,6 +2420,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2438,6 +2458,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2474,6 +2495,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2512,6 +2534,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2584,6 +2607,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2635,6 +2659,7 @@ describe("GET /api/linear/projects", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2668,6 +2693,7 @@ describe("GET /api/linear/projects", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2731,6 +2757,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2764,6 +2791,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });
@@ -2842,6 +2870,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
+      acpBinaryPaths: {},
       dockerAutoUpdate: false,
       updatedAt: 0,
     });

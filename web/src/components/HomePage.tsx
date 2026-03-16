@@ -215,6 +215,22 @@ export function HomePage() {
     setBackend(newBackend);
     localStorage.setItem("cc-backend", newBackend);
     setDynamicModels(null);
+
+    const isAcp = newBackend.startsWith("acp:");
+
+    if (isAcp || newBackend === "codex") {
+      // Загрузить модели из API для ACP и Codex бэкендов
+      api.getBackendModels(newBackend).then((models) => {
+        if (models.length > 0) {
+          const options = toModelOptions(models);
+          setDynamicModels(options);
+          if (!options.some((m) => m.value === model)) {
+            setModel(options[0].value);
+          }
+        }
+      }).catch(() => {});
+    }
+
     setModel(getDefaultModel(newBackend));
     setMode(getDefaultMode(newBackend));
     if (newBackend !== "claude") {
@@ -228,9 +244,9 @@ export function HomePage() {
     }
   }
 
-  // Fetch dynamic models for the selected backend
+  // Загрузка динамических моделей для не-Claude бэкендов
   useEffect(() => {
-    if (backend !== "codex") {
+    if (backend === "claude") {
       setDynamicModels(null);
       return;
     }
@@ -238,13 +254,13 @@ export function HomePage() {
       if (models.length > 0) {
         const options = toModelOptions(models);
         setDynamicModels(options);
-        // If current model isn't in the list, switch to first
+        // Если текущая модель не в списке, переключиться на первую
         if (!options.some((m) => m.value === model)) {
           setModel(options[0].value);
         }
       }
     }).catch(() => {
-      // Fall back to hardcoded models silently
+      // Откат к статическим моделям
     });
   }, [backend]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -323,7 +339,7 @@ export function HomePage() {
     });
   }, [cwd]);
 
-  const selectedModel = MODELS.find((m) => m.value === model) || MODELS[0];
+  const selectedModel = MODELS.find((m) => m.value === model) || MODELS[0] || { value: model, label: model || "Loading…", icon: "🤖" };
   const selectedMode = MODES.find((m) => m.value === mode) || MODES[0];
   const logoSrc = backend === "codex" ? "/logo-codex.svg" : "/logo.svg";
   const dirLabel = cwd ? cwd.split("/").pop() || cwd : "Select folder";
@@ -598,7 +614,7 @@ export function HomePage() {
   ) {
     const store = useStore.getState();
     store.clearCreation();
-    store.setSessionCreating(true, backend as "claude" | "codex");
+    store.setSessionCreating(true, backend.startsWith("acp:") ? "acp" : backend as "claude" | "codex");
 
     try {
       // Disconnect current session if any

@@ -803,15 +803,87 @@ function LinearIssueSection({ sessionId }: { sessionId: string }) {
   );
 }
 
+// ─── ACP Token/Context Details ───────────────────────────────────────────────
+
+/** Секция usage для ACP-агентов: токены, turns, context */
+function AcpUsageSection({ sessionId }: { sessionId: string }) {
+   const session = useStore((s) => s.sessions.get(sessionId));
+   const contextPct = session?.context_used_percent ?? 0;
+   const numTurns = session?.num_turns ?? 0;
+   const details = session?.acp_token_details;
+   const hasTokenData = details && (details.inputTokens > 0 || details.outputTokens > 0);
+
+   return (
+      <div className="shrink-0 px-4 py-3 space-y-2">
+         <span className="text-[11px] text-cc-muted uppercase tracking-wider">Tokens</span>
+         {hasTokenData ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+               <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-cc-muted">Input</span>
+                  <span className="text-[11px] text-cc-fg tabular-nums font-medium">{formatTokenCount(details.inputTokens)}</span>
+               </div>
+               <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-cc-muted">Output</span>
+                  <span className="text-[11px] text-cc-fg tabular-nums font-medium">{formatTokenCount(details.outputTokens)}</span>
+               </div>
+               {details.thoughtTokens > 0 && (
+                  <div className="flex items-center justify-between">
+                     <span className="text-[11px] text-cc-muted">Reasoning</span>
+                     <span className="text-[11px] text-cc-fg tabular-nums font-medium">{formatTokenCount(details.thoughtTokens)}</span>
+                  </div>
+               )}
+               {details.cachedReadTokens > 0 && (
+                  <div className="flex items-center justify-between">
+                     <span className="text-[11px] text-cc-muted">Cached</span>
+                     <span className="text-[11px] text-cc-fg tabular-nums font-medium">{formatTokenCount(details.cachedReadTokens)}</span>
+                  </div>
+               )}
+               <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-cc-muted">Turns</span>
+                  <span className="text-[11px] text-cc-fg tabular-nums font-medium">{numTurns}</span>
+               </div>
+            </div>
+         ) : (
+            <div className="space-y-1.5">
+               <p className="text-[10px] text-cc-muted/70 italic">Token data not available for this agent</p>
+               <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-cc-muted">Turns</span>
+                  <span className="text-[11px] text-cc-fg tabular-nums font-medium">{numTurns}</span>
+               </div>
+            </div>
+         )}
+         <div className="space-y-1">
+            <div className="flex items-center justify-between">
+               <span className="text-[11px] text-cc-muted">Context</span>
+               <span className="text-[11px] text-cc-muted tabular-nums">
+                  {details?.modelContextWindow
+                     ? `${formatTokenCount(details.inputTokens + details.outputTokens)} / ${formatTokenCount(details.modelContextWindow)}`
+                     : `${contextPct}%`}
+               </span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-cc-hover overflow-hidden">
+               <div
+                  className={`h-full rounded-full transition-all duration-500 ${barColor(contextPct)}`}
+                  style={{ width: `${Math.min(contextPct, 100)}%` }}
+               />
+            </div>
+         </div>
+      </div>
+   );
+}
+
 // ─── Extracted Section Components ───────────────────────────────────────────
 
 /** Wrapper that renders the correct usage/rate-limit component based on backend type */
 function UsageLimitsRenderer({ sessionId }: { sessionId: string }) {
   const session = useStore((s) => s.sessions.get(sessionId));
   const sdk = useSdkSession(sessionId);
-  const isCodex = (session?.backend_type || sdk?.backendType) === "codex";
+  const backendType = session?.backend_type || sdk?.backendType;
 
-  if (isCodex) {
+  if (backendType === "acp") {
+    return <AcpUsageSection sessionId={sessionId} />;
+  }
+  if (backendType === "codex") {
     return (
       <>
         <CodexRateLimitsSection sessionId={sessionId} />

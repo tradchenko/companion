@@ -20,6 +20,7 @@ import type {
    ContentBlock,
 } from './session-types.js';
 import type { RecorderManager } from './recorder.js';
+import type { IBackendAdapter } from './backend-adapter.js';
 import { readMcpServersForAcp } from './mcp-config-reader.js';
 import { cacheAcpAgentModels } from './acp-registry.js';
 
@@ -163,14 +164,14 @@ const RPC_METHOD_TIMEOUTS: Record<string, number> = {
 
 // ─── Адаптер ─────────────────────────────────────────────────────────────────
 
-export class AcpAdapter {
+export class AcpAdapter implements IBackendAdapter {
    private transport: IAcpTransport;
    private sessionId: string;
    private options: AcpAdapterOptions;
 
    // Коллбэки
    private browserMessageCb: ((msg: BrowserIncomingMessage) => void) | null = null;
-   private sessionMetaCb: ((meta: Record<string, unknown>) => void) | null = null;
+   private sessionMetaCb: ((meta: { cliSessionId?: string; model?: string; cwd?: string }) => void) | null = null;
    private disconnectCb: (() => void) | null = null;
    private initErrorCb: ((error: string) => void) | null = null;
 
@@ -245,7 +246,7 @@ export class AcpAdapter {
    }
 
    /** Подписка на метаданные сессии */
-   onSessionMeta(cb: (meta: Record<string, unknown>) => void): void {
+   onSessionMeta(cb: (meta: { cliSessionId?: string; model?: string; cwd?: string }) => void): void {
       this.sessionMetaCb = cb;
    }
 
@@ -286,6 +287,11 @@ export class AcpAdapter {
       this.flushPendingOutgoing();
 
       return this.dispatchOutgoing(msg);
+   }
+
+   /** IBackendAdapter.send() — единая точка входа для сообщений от браузера */
+   send(msg: BrowserOutgoingMessage): boolean {
+      return this.sendBrowserMessage(msg);
    }
 
    /** Получить ACP sessionId (аналог threadId) */

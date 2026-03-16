@@ -250,10 +250,10 @@ describe('AcpAdapter', () => {
          }
       });
 
-      it('tool_call → assistant сообщение с tool_use', async () => {
+      it('tool_call → tool_use_summary', async () => {
          /**
-          * Проверяем что tool_call транслируется в assistant-сообщение
-          * с content-блоком типа tool_use.
+          * Проверяем что tool_call транслируется в tool_use_summary
+          * (прогресс-индикатор, не assistant message).
           */
          const { mock, messages } = await createInitializedAdapter();
          const beforeCount = messages.length;
@@ -266,18 +266,13 @@ describe('AcpAdapter', () => {
             status: 'in_progress',
          });
 
-         const assistantMsgs = messages.slice(beforeCount).filter((m) => m.type === 'assistant');
-         expect(assistantMsgs).toHaveLength(1);
+         const summaryMsgs = messages.slice(beforeCount).filter((m) => m.type === 'tool_use_summary');
+         expect(summaryMsgs).toHaveLength(1);
 
-         const msg = assistantMsgs[0];
-         if (msg.type === 'assistant') {
-            expect(msg.message.content).toHaveLength(1);
-            const block = msg.message.content[0];
-            expect(block.type).toBe('tool_use');
-            if (block.type === 'tool_use') {
-               expect(block.id).toBe('tc-001');
-               expect(block.name).toBe('read_file');
-            }
+         const msg = summaryMsgs[0];
+         if (msg.type === 'tool_use_summary') {
+            expect(msg.summary).toBe('read_file');
+            expect(msg.tool_use_ids).toContain('tc-001');
          }
       });
 
@@ -417,7 +412,7 @@ describe('AcpAdapter', () => {
 
          // Проверяем что transport.respond вызван с правильными аргументами
          expect(mock.transport.respond).toHaveBeenCalledWith(42, {
-            outcome: { outcome: 'selected', optionId: 'allow_once' },
+            outcome: { outcome: 'selected', optionId: 'proceed_once' },
          });
       });
 
@@ -442,7 +437,7 @@ describe('AcpAdapter', () => {
          });
 
          expect(mock.transport.respond).toHaveBeenCalledWith(99, {
-            outcome: { outcome: 'selected', optionId: 'reject_once' },
+            outcome: { outcome: 'selected', optionId: 'cancel' },
          });
       });
    });

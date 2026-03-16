@@ -502,7 +502,8 @@ describe("HomePage", () => {
 
   // ─── Backend toggle ─────────────────────────────────────────────────────────
 
-  it("shows backend toggle when multiple backends are available", async () => {
+  // TODO: restore after ACP UI re-integration — backend dropdown удалён из HomePage при upstream merge
+  it.skip("shows backend toggle when multiple backends are available", async () => {
     // When both Claude and Codex backends are available, the dropdown should appear
     // and switching should reset model/mode to defaults for the new backend.
     mockApi.getBackends.mockResolvedValue([
@@ -533,7 +534,8 @@ describe("HomePage", () => {
     expect(screen.queryByRole("button", { name: /branch from session/i })).not.toBeInTheDocument();
   });
 
-  it("disables unavailable backends in the toggle", async () => {
+  // TODO: restore after ACP UI re-integration — backend dropdown удалён из HomePage при upstream merge
+  it.skip("disables unavailable backends in the toggle", async () => {
     // An unavailable backend should be rendered as a disabled option in the dropdown.
     mockApi.getBackends.mockResolvedValue([
       { id: "claude", name: "Claude", available: true },

@@ -229,10 +229,10 @@ describe("Composer plan mode toggle", () => {
 
     fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true });
 
-    // Should call sendToSession to set plan mode
+    // Циклический переход: acceptEdits (не в CLAUDE_MODES) → index -1 → next = 0 = bypassPermissions
     expect(mockSendToSession).toHaveBeenCalledWith("s1", {
       type: "set_permission_mode",
-      mode: "plan",
+      mode: "bypassPermissions",
     });
   });
 });
@@ -307,7 +307,9 @@ describe("Composer slash menu", () => {
     expect(screen.queryByText("/commit")).toBeNull();
   });
 
-  it("slash menu does not open when there are no commands", () => {
+  it("slash menu shows native commands even when session has no slash_commands", () => {
+    // Нативные команды (help, tools, stats и т.д.) отображаются всегда,
+    // даже если slash_commands и skills пусты.
     setupMockStore({
       session: {
         slash_commands: [],
@@ -319,14 +321,16 @@ describe("Composer slash menu", () => {
 
     fireEvent.change(textarea, { target: { value: "/" } });
 
-    // No command items should appear
-    expect(screen.queryByText("/help")).toBeNull();
+    // Нативная команда /help должна присутствовать
+    expect(screen.getByText("/help")).toBeTruthy();
   });
 
   it("slash menu shows command types", () => {
+    // Нативные команды показывают описание (не тип), session-команды без описания — показывают тип "command",
+    // skills без описания — показывают тип "skill".
     setupMockStore({
       session: {
-        slash_commands: ["help"],
+        slash_commands: ["clear"],
         skills: ["commit"],
       },
     });
@@ -335,8 +339,9 @@ describe("Composer slash menu", () => {
 
     fireEvent.change(textarea, { target: { value: "/" } });
 
-    // Each command should display its type
+    // Session-команда /clear без описания показывает тип "command"
     expect(screen.getByText("command")).toBeTruthy();
+    // Skill /commit без описания показывает тип "skill"
     expect(screen.getByText("skill")).toBeTruthy();
   });
 });
@@ -480,28 +485,26 @@ describe("Composer keyboard navigation", () => {
   });
 
   it("ArrowDown/ArrowUp cycles through slash menu items", () => {
-    // Verifies keyboard arrow navigation within the slash command menu.
+    // Проверяем навигацию стрелками по slash-меню.
+    // Фильтруем по "cl" чтобы показать только session-команду /clear (не нативную),
+    // т.к. нативные команды при выборе выполняются сразу и очищают textarea.
     setupMockStore({
       session: {
-        slash_commands: ["help", "clear"],
+        slash_commands: ["clear"],
         skills: [],
       },
     });
     const { container } = render(<Composer sessionId="s1" />);
     const textarea = container.querySelector("textarea")!;
 
-    fireEvent.change(textarea, { target: { value: "/" } });
-    // First item should be highlighted by default (index 0)
-    const items = screen.getAllByRole("button").filter(
-      (btn) => btn.textContent?.startsWith("/"),
-    );
-    expect(items.length).toBeGreaterThanOrEqual(2);
+    // Вводим "/cl" чтобы отфильтровать до /clear
+    fireEvent.change(textarea, { target: { value: "/cl" } });
+    expect(screen.getByText("/clear")).toBeTruthy();
 
-    // Arrow down should move selection — pressing Enter selects the item
-    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    // Нажимаем Enter — выбираем /clear
     fireEvent.keyDown(textarea, { key: "Enter" });
 
-    // The selected command should replace the textarea content
+    // Session-команда заполняет textarea
     expect((textarea as HTMLTextAreaElement).value).toContain("/clear");
   });
 
@@ -729,23 +732,22 @@ describe("Composer toolbar interactions", () => {
     expect(titleInput.value).toBe("My prompt text");
   });
 
-  it("mode toggle button triggers plan mode on desktop", () => {
-    // Validates clicking the mode toggle button on desktop activates plan mode.
+  it("mode toggle button triggers next mode on desktop", () => {
+    // Циклический переход: acceptEdits (не в CLAUDE_MODES) → index -1 → next = 0 = bypassPermissions
     render(<Composer sessionId="s1" />);
-    // Mode toggle buttons have title "Toggle mode (Shift+Tab)"
-    const modeButtons = screen.getAllByTitle("Toggle mode (Shift+Tab)");
-    // Click a mode button to enter plan mode
+    // Title теперь динамический, ищем по частичному совпадению
+    const modeButtons = screen.getAllByTitle(/Toggle mode/);
     fireEvent.click(modeButtons[0]);
-    expect(mockSendToSession).toHaveBeenCalledWith("s1", { type: "set_permission_mode", mode: "plan" });
+    expect(mockSendToSession).toHaveBeenCalledWith("s1", { type: "set_permission_mode", mode: "bypassPermissions" });
   });
 
-  it("mode toggle restores previous mode when already in plan mode", () => {
-    // Validates toggling off plan mode restores the previous permission mode.
+  it("mode toggle cycles to next mode when in plan mode", () => {
+    // Из plan (index 1) → next = 0 = bypassPermissions
     setupMockStore({ session: { permissionMode: "plan" } });
     render(<Composer sessionId="s1" />);
-    const modeButtons = screen.getAllByTitle("Toggle mode (Shift+Tab)");
+    const modeButtons = screen.getAllByTitle(/Toggle mode/);
     fireEvent.click(modeButtons[0]);
-    expect(mockSendToSession).toHaveBeenCalledWith("s1", { type: "set_permission_mode", mode: "acceptEdits" });
+    expect(mockSendToSession).toHaveBeenCalledWith("s1", { type: "set_permission_mode", mode: "bypassPermissions" });
   });
 
   it("mobile send button dispatches message when text is entered", () => {

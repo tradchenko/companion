@@ -11,6 +11,9 @@ import { useMentionMenu } from "../utils/use-mention-menu.js";
 import { readFileAsBase64, type ImageAttachment } from "../utils/image.js";
 import { tryExecuteNativeCommand, getNativeCommandItems } from "../utils/native-commands.js";
 
+// Счётчик для генерации уникальных ID пользовательских сообщений
+let idCounter = 0;
+
 interface CommandItem {
   name: string;
   type: "command" | "skill" | "native";

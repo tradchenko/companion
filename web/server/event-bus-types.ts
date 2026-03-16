@@ -3,6 +3,7 @@
 
 import type { BrowserIncomingMessage } from "./session-types.js";
 import type { CodexAdapter } from "./codex-adapter.js";
+import type { AcpAdapter } from "./acp-adapter.js";
 import type { SessionPhase } from "./session-state-machine.js";
 
 export interface CompanionEventMap {
@@ -43,6 +44,12 @@ export interface CompanionEventMap {
   "backend:codex-adapter-created": {
     sessionId: string;
     adapter: CodexAdapter;
+  };
+
+  /** ACP adapter created and ready to be attached to WsBridge. */
+  "backend:acp-adapter-created": {
+    sessionId: string;
+    adapter: AcpAdapter;
   };
 
   // ── Per-session messages (high volume) ─────────────────────────────

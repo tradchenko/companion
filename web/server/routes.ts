@@ -35,6 +35,8 @@ import { registerLinearRoutes, transitionLinearIssue, fetchLinearTeamStates } fr
 import { registerLinearConnectionRoutes } from "./routes/linear-connection-routes.js";
 import { getConnection, listConnections, resolveApiKey } from "./linear-connections.js";
 import { getSettings } from "./settings-manager.js";
+import { getAllAcpAgents, getAcpAgent, getAcpAgentModels } from "./acp-registry.js";
+import { resolveAcpBinary } from "./acp-binary-resolver.js";
 import { discoverClaudeSessions } from "./claude-session-discovery.js";
 import { getClaudeSessionHistoryPage } from "./claude-session-history.js";
 import { verifyToken, getToken, getLanAddress, regenerateToken, getAllAddresses } from "./auth-manager.js";
@@ -1182,6 +1184,14 @@ export function createRoutes(
     backends.push({ id: "claude", name: "Claude Code", available: resolveBinary("claude") !== null });
     backends.push({ id: "codex", name: "Codex", available: resolveBinary("codex") !== null });
 
+    // ACP агенты из реестра
+    const currentSettings = getSettings();
+    for (const agent of getAllAcpAgents()) {
+      const customPath = currentSettings.acpBinaryPaths[agent.id];
+      const binaryPath = resolveAcpBinary(agent.id, customPath);
+      backends.push({ id: `acp:${agent.id}`, name: agent.name, available: binaryPath !== null });
+    }
+
     return c.json(backends);
   });
 
@@ -1218,6 +1228,13 @@ export function createRoutes(
       } catch (e) {
         return c.json({ error: "Failed to parse Codex models cache" }, 500);
       }
+    }
+
+    // ACP агенты — модели из реестра/кеша
+    if (backendId.startsWith("acp:")) {
+      const agentId = backendId.slice(4);
+      const models = getAcpAgentModels(agentId);
+      return c.json(models);
     }
 
     // Claude models are hardcoded on the frontend
@@ -1265,6 +1282,24 @@ export function createRoutes(
   registerCronRoutes(api, cronScheduler);
   registerAgentRoutes(api, agentExecutor);
   registerMetricsRoutes(api, { gaugeProvider: wsBridge });
+
+  // ─── ACP ──────────────────────────────────────────────────────────
+
+  // GET /api/acp/agents — список ACP агентов
+  api.get("/acp/agents", (c) => {
+    return c.json(getAllAcpAgents());
+  });
+
+  // POST /api/acp/agents/:id/resolve — проверка бинарника
+  api.post("/acp/agents/:id/resolve", async (c) => {
+    const id = c.req.param("id");
+    const agent = getAcpAgent(id);
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    const settings = getSettings();
+    const customPath = settings.acpBinaryPaths?.[id];
+    const resolved = resolveAcpBinary(agent.binary, customPath);
+    return c.json({ found: !!resolved, path: resolved });
+  });
 
   return api;
 }

@@ -128,7 +128,7 @@ export function attachAcpAdapterHandlers(
    adapter.onDisconnect(() => {
       // Защита: игнорируем отключение устаревшего адаптера (при перезапуске
       // новый адаптер подключается до того, как старый отправит disconnect)
-      if (session.acpAdapter !== adapter) {
+      if (session.backendAdapter !== adapter) {
          console.log(`[ws-bridge] Игнорируем устаревший disconnect для сессии ${sessionId} (адаптер заменён)`);
          return;
       }
@@ -137,7 +137,7 @@ export function attachAcpAdapterHandlers(
          deps.broadcastToBrowsers(session, { type: 'permission_cancelled', request_id: reqId });
       }
       session.pendingPermissions.clear();
-      session.acpAdapter = null;
+      session.backendAdapter = null;
       deps.persistSession(session);
       console.log(`[ws-bridge] ACP-адаптер отключён для сессии ${sessionId}`);
       deps.broadcastToBrowsers(session, { type: 'cli_disconnected' });

@@ -15,7 +15,7 @@ export interface UpdatesSlice {
   creationProgress: CreationProgressEvent[] | null;
   creationError: string | null;
   sessionCreating: boolean;
-  sessionCreatingBackend: "claude" | "codex" | null;
+  sessionCreatingBackend: "claude" | "codex" | "acp" | null;
 
   setUpdateInfo: (info: UpdateInfo | null) => void;
   dismissUpdate: (version: string) => void;
@@ -23,7 +23,7 @@ export interface UpdatesSlice {
   setDockerUpdateDialogOpen: (open: boolean) => void;
   addCreationProgress: (step: CreationProgressEvent) => void;
   clearCreation: () => void;
-  setSessionCreating: (creating: boolean, backend?: "claude" | "codex") => void;
+  setSessionCreating: (creating: boolean, backend?: "claude" | "codex" | "acp") => void;
   setCreationError: (error: string | null) => void;
 }
 

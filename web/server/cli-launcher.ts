@@ -13,6 +13,11 @@ import type { SessionStore } from "./session-store.js";
 import type { BackendType } from "./session-types.js";
 import type { RecorderManager } from "./recorder.js";
 import { CodexAdapter } from "./codex-adapter.js";
+import { AcpTransport } from "./acp-transport.js";
+import { AcpAdapter } from "./acp-adapter.js";
+import { getAcpAgent } from "./acp-registry.js";
+import { resolveAcpBinary } from "./acp-binary-resolver.js";
+import { readMcpServersForAcp } from "./mcp-config-reader.js";
 import { resolveBinary, getEnrichedPath } from "./path-resolver.js";
 import { containerManager } from "./container-manager.js";
 import { companionBus } from "./event-bus.js";
@@ -1260,6 +1265,105 @@ export class CliLauncher {
   async killAll(): Promise<void> {
     const ids = [...this.processes.keys()];
     await Promise.all(ids.map((id) => this.kill(id)));
+  }
+
+  /**
+   * Запуск ACP-агента (stdio JSON-RPC).
+   * Возвращает SdkSessionInfo после запуска процесса.
+   */
+  async spawnAcp(
+    agentId: string,
+    opts: { model?: string; cwd?: string; env?: Record<string, string> },
+  ): Promise<SdkSessionInfo> {
+    const sessionId = randomUUID();
+    const cwd = opts.cwd || process.cwd();
+
+    const agentDef = getAcpAgent(agentId);
+    if (!agentDef) {
+      throw new Error(`ACP agent "${agentId}" not found in registry`);
+    }
+
+    const settings = (await import("./settings-manager.js")).getSettings();
+    const customPath = settings.acpBinaryPaths?.[agentId];
+    const binary = resolveAcpBinary(agentDef.binary, customPath);
+    if (!binary) {
+      throw new Error(`ACP binary "${agentDef.binary}" not found in PATH`);
+    }
+
+    const info: SdkSessionInfo = {
+      sessionId,
+      state: "starting",
+      model: opts.model,
+      cwd,
+      createdAt: Date.now(),
+      backendType: "acp",
+    };
+
+    this.sessions.set(sessionId, info);
+    if (opts.env) {
+      this.sessionEnvs.set(sessionId, { ...opts.env });
+    }
+
+    const args = [...agentDef.acpFlags];
+    const enrichedPath = getEnrichedPath();
+    const binaryDir = resolve(binary, "..");
+    const pathSep = process.platform === "win32" ? ";" : ":";
+    const spawnPath = [binaryDir, ...enrichedPath.split(pathSep)].filter(Boolean).join(pathSep);
+
+    console.log(`[cli-launcher] [ACP] Запуск ${agentDef.name}: ${binary} ${args.join(" ")} (cwd: ${cwd})`);
+
+    const proc = Bun.spawn([binary, ...args], {
+      cwd,
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        PATH: spawnPath,
+        ...(opts.env || {}),
+      },
+    });
+
+    info.pid = proc.pid;
+    info.state = "running";
+    this.processes.set(sessionId, proc);
+
+    // Создаём транспорт и адаптер
+    // Bun.spawn stdin — FileSink, оборачиваем для совместимости с AcpTransport
+    const stdinSink = proc.stdin;
+    const stdinWrapper = { write: (data: Uint8Array) => { stdinSink.write(data); return data.length; } };
+    const transport = new AcpTransport(stdinWrapper, proc.stdout);
+    const adapter = new AcpAdapter(transport, sessionId, {
+      agentId,
+      cwd,
+      model: opts.model,
+      threadId: info.cliSessionId || undefined,
+      recorder: this.recorder ?? undefined,
+      killProcess: () => { proc.kill(); },
+    });
+
+    // stderr → логирование
+    const stderr = proc.stderr;
+    if (stderr && typeof stderr !== "number") {
+      this.pipeStream(sessionId, stderr, "stderr");
+    }
+
+    // Оповещаем через event bus вместо коллбэка
+    companionBus.emit("backend:acp-adapter-created", { sessionId, adapter });
+
+    // Мониторинг завершения процесса
+    proc.exited.then((exitCode) => {
+      console.log(`[cli-launcher] [ACP] ${agentDef.name} завершился (exit ${exitCode})`);
+      info.state = "exited";
+      info.exitCode = exitCode ?? 1;
+      transport.close();
+      this.processes.delete(sessionId);
+      this.persistState();
+      companionBus.emit("session:exited", { sessionId, exitCode: exitCode ?? null });
+    });
+
+    this.persistState();
+    return info;
   }
 
   private async pipeStream(

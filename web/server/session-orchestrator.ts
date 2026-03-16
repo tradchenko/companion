@@ -4,6 +4,8 @@ import type { SessionStore } from "./session-store.js";
 import type { WorktreeTracker } from "./worktree-tracker.js";
 import type { AgentExecutor } from "./agent-executor.js";
 import type { BackendType, CreationStepId } from "./session-types.js";
+import type { AcpAdapter } from "./acp-adapter.js";
+import { getAcpAgent } from "./acp-registry.js";
 import type { ContainerConfig, ContainerInfo } from "./container-manager.js";
 import { containerManager } from "./container-manager.js";
 import { imagePullManager } from "./image-pull-manager.js";
@@ -158,6 +160,11 @@ export class SessionOrchestrator {
       this.wsBridge.attachBackendAdapter(sessionId, adapter, "codex");
     });
 
+    // When an ACP adapter is created, attach it to the WsBridge
+    companionBus.on("backend:acp-adapter-created", ({ sessionId, adapter }) => {
+      this.wsBridge.attachBackendAdapter(sessionId, adapter, "acp");
+    });
+
     // When a CLI/Codex process exits, notify agent executor and external listeners
     // separately so a throw in one doesn't skip the other (bus isolates each handler).
     companionBus.on("session:exited", ({ sessionId, exitCode }) => {
@@ -229,9 +236,24 @@ export class SessionOrchestrator {
           ? body.resumeSessionAt.trim()
           : undefined;
       const forkSession = body.forkSession === true;
-      const backend = (body.backend ?? "claude") as BackendType;
-      if (backend !== "claude" && backend !== "codex") {
+      const backendRaw = body.backend ?? "claude";
+      const isAcp = backendRaw === "acp" || backendRaw.startsWith("acp:");
+      const backend = (isAcp ? "acp" : backendRaw) as BackendType;
+      if (backend !== "claude" && backend !== "codex" && backend !== "acp") {
         return { ok: false, error: `Invalid backend: ${String(body.backend)}`, status: 400 };
+      }
+
+      // Для ACP извлекаем agentId из строки backend (напр. "acp:gemini" → "gemini")
+      let acpAgentId: string | undefined;
+      if (isAcp) {
+        acpAgentId = backendRaw.includes(":") ? backendRaw.split(":")[1] : undefined;
+        if (!acpAgentId) {
+          return { ok: false, error: "ACP backend requires agent ID (e.g. 'acp:gemini')", status: 400 };
+        }
+        const agentDef = getAcpAgent(acpAgentId);
+        if (!agentDef) {
+          return { ok: false, error: `ACP agent "${acpAgentId}" not found in registry`, status: 404 };
+        }
       }
 
       // --- Step: Resolve environment ---
@@ -515,10 +537,18 @@ export class SessionOrchestrator {
       }
 
       // --- Step: Launch CLI ---
-      if (onProgress) await onProgress("launching_cli", `Launching ${backend === "codex" ? "Codex" : "Claude Code"}...`, "in_progress");
+      const backendLabel = backend === "codex" ? "Codex" : backend === "acp" ? `ACP (${acpAgentId})` : "Claude Code";
+      if (onProgress) await onProgress("launching_cli", `Launching ${backendLabel}...`, "in_progress");
 
       let session: SdkSessionInfo;
       try {
+        if (backend === "acp" && acpAgentId) {
+          session = await this.launcher.spawnAcp(acpAgentId, {
+            model: body.model,
+            cwd,
+            env: envVars,
+          });
+        } else {
         session = this.launcher.launch({
           model: body.model,
           permissionMode: body.permissionMode,
@@ -539,6 +569,7 @@ export class SessionOrchestrator {
           systemPrompt: backend === "codex" ? linearSystemPrompt : undefined,
           sandboxSlug: sandboxEnabled ? (body.sandboxSlug || undefined) : undefined,
         });
+        }
       } catch (e) {
         // Clean up container if it was created but launch failed
         if (containerId) containerManager.removeContainer(containerId);

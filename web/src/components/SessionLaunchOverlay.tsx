@@ -3,7 +3,7 @@ import type { CreationProgressEvent } from "../api.js";
 interface Props {
   steps: CreationProgressEvent[];
   error?: string | null;
-  backend?: "claude" | "codex";
+  backend?: "claude" | "codex" | "acp";
   onCancel?: () => void;
 }
 
@@ -13,6 +13,7 @@ interface Props {
  * centered, animated launch screen.
  */
 export function SessionLaunchOverlay({ steps, error, backend, onCancel }: Props) {
+  // ACP-бэкенд использует стандартный логотип (logo-acp.svg пока нет)
   const logoSrc = backend === "codex" ? "/logo-codex.svg" : "/logo.svg";
   const isAnyInProgress = steps.some((s) => s.status === "in_progress");
   const allDone = steps.length > 0 && steps.every((s) => s.status === "done");
