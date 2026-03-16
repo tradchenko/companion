@@ -44,8 +44,39 @@ describe("Codex adapter method drift vs upstream protocol snapshot", () => {
 
     const legacyNotifications = new Set([
       "item/updated",
+      // Legacy alias still observed in recordings; upstream snapshot currently
+      // models the same payload under item/reasoning/textDelta.
+      "item/reasoning/delta",
+      // Status notification observed in production logs but not yet present in
+      // the pinned upstream snapshot files.
+      "thread/status/changed",
       "codex/event/stream_error",
       "codex/event/error",
+      "codex/event/token_count",
+      "codex/event/agent_message_delta",
+      "codex/event/agent_message_content_delta",
+      "codex/event/reasoning_content_delta",
+      "codex/event/agent_message",
+      "codex/event/item_started",
+      "codex/event/item_completed",
+      "codex/event/exec_command_begin",
+      "codex/event/exec_command_output_delta",
+      "codex/event/exec_command_end",
+      "codex/event/turn_diff",
+      "codex/event/terminal_interaction",
+      "codex/event/patch_apply_begin",
+      "codex/event/patch_apply_end",
+      "codex/event/user_message",
+      "codex/event/task_started",
+      "codex/event/task_complete",
+      "codex/event/mcp_startup_complete",
+      "codex/event/context_compacted",
+      "codex/event/agent_reasoning",
+      "codex/event/agent_reasoning_delta",
+      "codex/event/agent_reasoning_section_break",
+      // Companion-internal notification emitted by codex-ws-proxy.cjs on
+      // WebSocket reconnection — not part of the upstream Codex protocol.
+      "companion/wsReconnected",
     ]);
 
     const legacyServerRequests = new Set([

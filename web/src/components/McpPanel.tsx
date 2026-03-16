@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store.js";
 import { sendMcpGetStatus, sendMcpToggle, sendMcpReconnect, sendMcpSetServers } from "../ws.js";
-import type { McpServerDetail, McpServerConfig, BackendType } from "../types.js";
+import type { McpServerDetail, McpServerConfig } from "../types.js";
 
 const EMPTY_SERVERS: McpServerDetail[] = [];
 const EMPTY_MCP_INIT: { name: string; status: string }[] = [];
-
-/** Бэкенды, для которых управление MCP недоступно (только просмотр) */
-const READ_ONLY_BACKENDS = new Set<BackendType>(["claude", "acp"]);
 
 const STATUS_STYLES: Record<string, { label: string; badge: string; dot: string }> = {
   connected:  { label: "Connected",  badge: "text-cc-success bg-cc-success/10", dot: "bg-cc-success" },
@@ -16,103 +13,6 @@ const STATUS_STYLES: Record<string, { label: string; badge: string; dot: string 
   disabled:   { label: "Disabled",   badge: "text-cc-muted bg-cc-hover",        dot: "bg-cc-muted opacity-40" },
 };
 const DEFAULT_STATUS = { label: "Unknown", badge: "text-cc-muted bg-cc-hover", dot: "bg-cc-muted opacity-40" };
-
-/** Строка MCP-сервера в режиме только-чтение (Claude Code / ACP) */
-function McpServerRowReadOnly({ server }: { server: McpServerDetail }) {
-  const [expanded, setExpanded] = useState(false);
-  const style = STATUS_STYLES[server.status] || DEFAULT_STATUS;
-  const toolCount = server.tools?.length ?? 0;
-
-  return (
-    <div className="rounded-lg border border-cc-border bg-cc-bg">
-      <div className="flex items-center gap-2 px-2.5 py-2">
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
-
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex-1 min-w-0 text-left cursor-pointer"
-        >
-          <span className="text-[12px] font-medium text-cc-fg truncate block">
-            {server.name}
-          </span>
-        </button>
-
-        <span className={`text-[9px] font-medium px-1.5 rounded-full leading-[16px] shrink-0 ${style.badge}`}>
-          {style.label}
-        </span>
-      </div>
-
-      {expanded && (
-        <div className="px-2.5 pb-2.5 space-y-1.5 pt-2">
-          {/* Информация о конфигурации (если доступна) */}
-          {server.config.type !== "unknown" && (
-            <div className="text-[11px] text-cc-muted space-y-0.5">
-              <div className="flex items-center gap-1">
-                <span className="text-cc-muted/60">Type:</span>
-                <span>{server.config.type}</span>
-              </div>
-              {server.config.command && (
-                <div className="flex items-start gap-1">
-                  <span className="text-cc-muted/60 shrink-0">Cmd:</span>
-                  <span className="font-mono text-[10px] break-all">
-                    {server.config.command}
-                    {server.config.args?.length ? ` ${server.config.args.join(" ")}` : ""}
-                  </span>
-                </div>
-              )}
-              {server.config.url && (
-                <div className="flex items-start gap-1">
-                  <span className="text-cc-muted/60 shrink-0">URL:</span>
-                  <span className="font-mono text-[10px] break-all">{server.config.url}</span>
-                </div>
-              )}
-              {server.scope && (
-                <div className="flex items-center gap-1">
-                  <span className="text-cc-muted/60">Scope:</span>
-                  <span>{server.scope}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Ошибка */}
-          {server.error && (
-            <div className="text-[11px] text-cc-error bg-cc-error/5 rounded px-2 py-1">
-              {server.error}
-            </div>
-          )}
-
-          {/* Инструменты */}
-          {toolCount > 0 && (
-            <div className="space-y-1">
-              <span className="text-[10px] text-cc-muted uppercase tracking-wider">
-                Tools ({toolCount})
-              </span>
-              <div className="flex flex-wrap gap-1">
-                {server.tools!.map((tool) => (
-                  <span
-                    key={tool.name}
-                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cc-hover text-cc-fg"
-                    title={
-                      tool.annotations
-                        ? Object.entries(tool.annotations)
-                            .filter(([, v]) => v)
-                            .map(([k]) => k)
-                            .join(", ") || undefined
-                        : undefined
-                    }
-                  >
-                    {tool.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function McpServerRow({
   server,
@@ -303,7 +203,7 @@ function AddServerForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="my-mcp-server"
-          className="w-full text-[12px] bg-cc-bg-secondary border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 focus:outline-none focus:border-cc-accent"
+          className="w-full text-[12px] bg-cc-input-bg border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 focus:outline-none focus:border-cc-primary"
         />
       </div>
 
@@ -320,7 +220,7 @@ function AddServerForm({
               onClick={() => setServerType(t)}
               className={`text-[11px] px-2 py-1 rounded-md border transition-colors cursor-pointer ${
                 serverType === t
-                  ? "border-cc-accent text-cc-accent bg-cc-accent/10"
+                  ? "border-cc-primary text-cc-primary bg-cc-primary/10"
                   : "border-cc-border text-cc-muted hover:text-cc-fg hover:border-cc-muted"
               }`}
             >
@@ -342,7 +242,7 @@ function AddServerForm({
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               placeholder="npx -y @modelcontextprotocol/server-memory"
-              className="w-full text-[12px] bg-cc-bg-secondary border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 font-mono focus:outline-none focus:border-cc-accent"
+              className="w-full text-[12px] bg-cc-input-bg border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 font-mono focus:outline-none focus:border-cc-primary"
             />
           </div>
           <div>
@@ -354,7 +254,7 @@ function AddServerForm({
               value={args}
               onChange={(e) => setArgs(e.target.value)}
               placeholder="--port 3000"
-              className="w-full text-[12px] bg-cc-bg-secondary border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 font-mono focus:outline-none focus:border-cc-accent"
+              className="w-full text-[12px] bg-cc-input-bg border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 font-mono focus:outline-none focus:border-cc-primary"
             />
           </div>
         </>
@@ -371,7 +271,7 @@ function AddServerForm({
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="http://localhost:3000/mcp"
-            className="w-full text-[12px] bg-cc-bg-secondary border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 font-mono focus:outline-none focus:border-cc-accent"
+            className="w-full text-[12px] bg-cc-input-bg border border-cc-border rounded px-2 py-1.5 text-cc-fg placeholder:text-cc-muted/40 font-mono focus:outline-none focus:border-cc-primary"
           />
         </div>
       )}
@@ -383,7 +283,7 @@ function AddServerForm({
           disabled={!canSubmit}
           className={`flex-1 text-[11px] font-medium py-1.5 rounded-md transition-colors ${
             canSubmit
-              ? "bg-cc-accent text-white hover:bg-cc-accent/90 cursor-pointer"
+              ? "bg-cc-primary text-white hover:bg-cc-primary-hover cursor-pointer"
               : "bg-cc-hover text-cc-muted cursor-not-allowed"
           }`}
         >
@@ -406,12 +306,6 @@ export function McpSection({ sessionId }: { sessionId: string }) {
   const cliConnected = useStore((s) => s.cliConnected.get(sessionId) ?? false);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Определяем тип бэкенда для выбора режима отображения
-  const backendType: BackendType = useStore(
-    (s) => s.sdkSessions.find((sdk) => sdk.sessionId === sessionId)?.backendType ?? "claude",
-  );
-  const isReadOnly = READ_ONLY_BACKENDS.has(backendType);
-
   // The session_init mcp_servers gives us basic info (name + status).
   // We can detect if MCP servers exist from session state to show the section.
   const sessionMcpServers = useStore(
@@ -421,13 +315,13 @@ export function McpSection({ sessionId }: { sessionId: string }) {
   const hasMcp = servers.length > 0 || sessionMcpServers.length > 0;
 
   // Auto-fetch detailed status when connected.
-  // Для read-only бэкендов (Claude Code / ACP) не запрашиваем статус —
-  // данные приходят из session_init.
+  // For Codex sessions, session_init may not include MCP server hints, so
+  // we must fetch regardless of current hasMcp detection.
   useEffect(() => {
-    if (cliConnected && !isReadOnly) {
+    if (cliConnected) {
       sendMcpGetStatus(sessionId);
     }
-  }, [sessionId, cliConnected, isReadOnly]);
+  }, [sessionId, cliConnected]);
 
   // If we have detailed servers, use those; otherwise fall back to basic info
   const displayServers: McpServerDetail[] =
@@ -451,56 +345,42 @@ export function McpSection({ sessionId }: { sessionId: string }) {
           MCP Servers
         </span>
         <div className="flex items-center gap-1">
-          {/* Кнопки управления только для Codex */}
-          {!isReadOnly && (
-            <>
-              {/* Add server button */}
-              <button
-                onClick={() => setShowAddForm(!showAddForm)}
-                disabled={!cliConnected}
-                className={`text-[11px] font-medium transition-colors ${
-                  cliConnected
-                    ? "text-cc-muted hover:text-cc-fg cursor-pointer"
-                    : "text-cc-muted/30 cursor-not-allowed"
-                }`}
-                title="Add MCP server"
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-                  <path d="M8 3v10M3 8h10" strokeLinecap="round" />
-                </svg>
-              </button>
-              {/* Refresh button */}
-              <button
-                onClick={() => sendMcpGetStatus(sessionId)}
-                disabled={!cliConnected}
-                className={`text-[11px] font-medium transition-colors ${
-                  cliConnected
-                    ? "text-cc-muted hover:text-cc-fg cursor-pointer"
-                    : "text-cc-muted/30 cursor-not-allowed"
-                }`}
-                title="Refresh MCP server status"
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-                  <path d="M2.5 8a5.5 5.5 0 019.78-3.5M13.5 8a5.5 5.5 0 01-9.78 3.5" strokeLinecap="round" />
-                  <path d="M12.5 2v3h-3M3.5 14v-3h3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </>
-          )}
+          {/* Add server button */}
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            disabled={!cliConnected}
+            className={`text-[11px] font-medium transition-colors ${
+              cliConnected
+                ? "text-cc-muted hover:text-cc-fg cursor-pointer"
+                : "text-cc-muted/30 cursor-not-allowed"
+            }`}
+            title="Add MCP server"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+              <path d="M8 3v10M3 8h10" strokeLinecap="round" />
+            </svg>
+          </button>
+          {/* Refresh button */}
+          <button
+            onClick={() => sendMcpGetStatus(sessionId)}
+            disabled={!cliConnected}
+            className={`text-[11px] font-medium transition-colors ${
+              cliConnected
+                ? "text-cc-muted hover:text-cc-fg cursor-pointer"
+                : "text-cc-muted/30 cursor-not-allowed"
+            }`}
+            title="Refresh MCP server status"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+              <path d="M2.5 8a5.5 5.5 0 019.78-3.5M13.5 8a5.5 5.5 0 01-9.78 3.5" strokeLinecap="round" />
+              <path d="M12.5 2v3h-3M3.5 14v-3h3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* Подсказка для read-only режима */}
-      {isReadOnly && displayServers.length > 0 && (
-        <div className="px-3 pb-1">
-          <p className="text-[10px] text-cc-muted/70 text-center">
-            MCP management is only available for Codex
-          </p>
-        </div>
-      )}
-
-      {/* Add server form (только для Codex) */}
-      {!isReadOnly && showAddForm && (
+      {/* Add server form */}
+      {showAddForm && (
         <div className="px-3 py-2">
           <AddServerForm
             sessionId={sessionId}
@@ -512,13 +392,13 @@ export function McpSection({ sessionId }: { sessionId: string }) {
       {/* Server list */}
       {displayServers.length > 0 && (
         <div className="px-3 py-2 space-y-1.5">
-          {displayServers.map((server) =>
-            isReadOnly ? (
-              <McpServerRowReadOnly key={server.name} server={server} />
-            ) : (
-              <McpServerRow key={server.name} server={server} sessionId={sessionId} />
-            ),
-          )}
+          {displayServers.map((server) => (
+            <McpServerRow
+              key={server.name}
+              server={server}
+              sessionId={sessionId}
+            />
+          ))}
         </div>
       )}
 
@@ -526,21 +406,15 @@ export function McpSection({ sessionId }: { sessionId: string }) {
       {!showAddForm && displayServers.length === 0 && (
         <div className="px-3 py-3">
           <p className="text-[11px] text-cc-muted text-center">
-            {isReadOnly
-              ? "No MCP servers."
-              : (
-                  <>
-                    No MCP servers configured.{" "}
-                    {cliConnected && (
-                      <button
-                        onClick={() => setShowAddForm(true)}
-                        className="text-cc-accent hover:underline cursor-pointer"
-                      >
-                        Add one
-                      </button>
-                    )}
-                  </>
-                )}
+            No MCP servers configured.{" "}
+            {cliConnected && (
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="text-cc-primary hover:underline cursor-pointer"
+              >
+                Add one
+              </button>
+            )}
           </p>
         </div>
       )}

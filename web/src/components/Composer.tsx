@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useStore } from "../store.js";
-import { sendToSession } from "../ws.js";
+import { createClientMessageId, sendToSession } from "../ws.js";
 import { CLAUDE_MODES, CODEX_MODES } from "../utils/backends.js";
 import { api, type SavedPrompt } from "../api.js";
 import type { ModeOption } from "../utils/backends.js";
@@ -10,8 +10,6 @@ import { useMentionMenu } from "../utils/use-mention-menu.js";
 
 import { readFileAsBase64, type ImageAttachment } from "../utils/image.js";
 import { tryExecuteNativeCommand, getNativeCommandItems } from "../utils/native-commands.js";
-
-let idCounter = 0;
 
 interface CommandItem {
   name: string;
@@ -164,6 +162,7 @@ export function Composer({ sessionId }: { sessionId: string }) {
   function handleSend() {
     const msg = text.trim();
     if (!msg || !isConnected) return;
+    const clientMsgId = createClientMessageId();
 
     // Перехватываем native Companion-команды
     if (msg.startsWith('/') && tryExecuteNativeCommand(sessionId, msg)) {
@@ -188,10 +187,11 @@ export function Composer({ sessionId }: { sessionId: string }) {
       content: msg,
       session_id: sessionId,
       images: images.length > 0 ? images.map((img) => ({ media_type: img.mediaType, data: img.base64 })) : undefined,
+      client_msg_id: clientMsgId,
     });
 
     useStore.getState().appendMessage(sessionId, {
-      id: `user-${Date.now()}-${++idCounter}`,
+      id: clientMsgId,
       role: "user",
       content: msg,
       images: images.length > 0 ? images.map((img) => ({ media_type: img.mediaType, data: img.base64 })) : undefined,

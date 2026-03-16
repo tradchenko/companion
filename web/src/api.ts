@@ -318,12 +318,7 @@ export interface CompanionEnv {
 export interface CompanionSandbox {
   name: string;
   slug: string;
-  dockerfile?: string;
   initScript?: string;
-  imageTag?: string;
-  buildStatus?: "idle" | "building" | "success" | "error";
-  buildError?: string;
-  lastBuiltAt?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -644,9 +639,17 @@ export interface AgentInfo {
       expression: string;
       recurring: boolean;
     };
-    /** Linear Agent Interaction SDK trigger (uses global OAuth app) */
+    /** Linear Agent Interaction SDK trigger (per-agent OAuth app) */
     linear?: {
       enabled: boolean;
+      /** OAuth app client ID (for display only, secret fields are stripped server-side) */
+      oauthClientId?: string;
+      /** Whether the agent has an access token (OAuth connected) */
+      hasAccessToken?: boolean;
+      /** Whether the agent has a client secret configured */
+      hasClientSecret?: boolean;
+      /** Whether the agent has a webhook secret configured */
+      hasWebhookSecret?: boolean;
     };
   };
   enabled: boolean;
@@ -907,23 +910,20 @@ export const api = {
   listSandboxes: () => get<CompanionSandbox[]>("/sandboxes"),
   getSandbox: (slug: string) =>
     get<CompanionSandbox>(`/sandboxes/${encodeURIComponent(slug)}`),
-  createSandbox: (name: string, opts?: { dockerfile?: string; initScript?: string }) =>
+  createSandbox: (name: string, opts?: { initScript?: string }) =>
     post<CompanionSandbox>("/sandboxes", { name, ...opts }),
   updateSandbox: (
     slug: string,
     data: {
       name?: string;
-      dockerfile?: string;
       initScript?: string;
-      imageTag?: string;
     },
   ) => put<CompanionSandbox>(`/sandboxes/${encodeURIComponent(slug)}`, data),
   deleteSandbox: (slug: string) => del(`/sandboxes/${encodeURIComponent(slug)}`),
-  buildSandboxImage: (slug: string) =>
-    post<{ success: boolean; imageTag?: string; log: string }>(`/sandboxes/${encodeURIComponent(slug)}/build`),
-  getSandboxBuildStatus: (slug: string) =>
-    get<{ buildStatus: string; buildError?: string; lastBuiltAt?: number; imageTag?: string }>(
-      `/sandboxes/${encodeURIComponent(slug)}/build-status`,
+  testInitScript: (slug: string, cwd: string, initScript?: string) =>
+    post<{ success: boolean; exitCode: number; output: string }>(
+      `/sandboxes/${encodeURIComponent(slug)}/test-init`,
+      { cwd, initScript },
     ),
 
   buildBaseImage: () =>
@@ -1239,8 +1239,8 @@ export const api = {
   // Linear OAuth (Agent Interaction SDK)
   getLinearOAuthStatus: () =>
     get<{ configured: boolean; hasClientId: boolean; hasClientSecret: boolean; hasWebhookSecret: boolean; hasAccessToken: boolean }>("/linear/oauth/status"),
-  getLinearOAuthAuthorizeUrl: () =>
-    get<{ url: string }>("/linear/oauth/authorize-url"),
+  getLinearOAuthAuthorizeUrl: (returnTo?: string) =>
+    get<{ url: string }>(`/linear/oauth/authorize-url${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`),
   disconnectLinearOAuth: () =>
     post<{ ok: boolean }>("/linear/oauth/disconnect"),
 

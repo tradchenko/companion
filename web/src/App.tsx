@@ -17,6 +17,7 @@ import { SessionTerminalDock } from "./components/SessionTerminalDock.js";
 import { SessionEditorPane } from "./components/SessionEditorPane.js";
 import { SessionBrowserPane } from "./components/SessionBrowserPane.js";
 import { UpdateOverlay } from "./components/UpdateOverlay.js";
+import { DockerUpdateDialog } from "./components/DockerUpdateDialog.js";
 
 // Lazy-loaded route-level pages (not needed for initial render)
 const Playground = lazy(() => import("./components/Playground.js").then((m) => ({ default: m.Playground })));
@@ -26,7 +27,6 @@ const LinearSettingsPage = lazy(() => import("./components/LinearSettingsPage.js
 const TailscalePage = lazy(() => import("./components/TailscalePage.js").then((m) => ({ default: m.TailscalePage })));
 const PromptsPage = lazy(() => import("./components/PromptsPage.js").then((m) => ({ default: m.PromptsPage })));
 const EnvManager = lazy(() => import("./components/EnvManager.js").then((m) => ({ default: m.EnvManager })));
-const DockerBuilderPage = lazy(() => import("./components/DockerBuilderPage.js").then((m) => ({ default: m.DockerBuilderPage })));
 const SandboxManager = lazy(() => import("./components/SandboxManager.js").then((m) => ({ default: m.SandboxManager })));
 const CronManager = lazy(() => import("./components/CronManager.js").then((m) => ({ default: m.CronManager })));
 const AgentsPage = lazy(() => import("./components/AgentsPage.js").then((m) => ({ default: m.AgentsPage })));
@@ -73,7 +73,6 @@ export default function App() {
   const isTailscaleIntegrationPage = route.page === "integration-tailscale";
   const isTerminalPage = route.page === "terminal";
   const isEnvironmentsPage = route.page === "environments";
-  const isDockerBuilderPage = route.page === "docker-builder";
   const isSandboxesPage = route.page === "sandboxes";
   const isScheduledPage = route.page === "scheduled";
   const isAgentsPage = route.page === "agents" || route.page === "agent-detail";
@@ -166,6 +165,14 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
+  // Show Docker image update dialog if an app update just completed
+  useEffect(() => {
+    if (localStorage.getItem("companion_docker_prompt_pending") === "1") {
+      localStorage.removeItem("companion_docker_prompt_pending");
+      useStore.getState().setDockerUpdateDialogOpen(true);
+    }
+  }, []);
+
   // Auth gate: show login page when not authenticated
   if (!isAuthenticated) {
     return <LoginPage />;
@@ -244,11 +251,6 @@ export default function App() {
             </div>
           )}
 
-          {isDockerBuilderPage && (
-            <div className="absolute inset-0">
-              <Suspense fallback={<LazyFallback />}><DockerBuilderPage /></Suspense>
-            </div>
-          )}
 
           {isSandboxesPage && (
             <div className="absolute inset-0">
@@ -356,6 +358,7 @@ export default function App() {
         </>
       )}
       <UpdateOverlay active={updateOverlayActive} />
+      <DockerUpdateDialog />
     </div>
   );
 }

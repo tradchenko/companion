@@ -71,6 +71,7 @@ vi.mock("node:fs", async (importOriginal) => {
 
 import { SessionStore } from "./session-store.js";
 import { CliLauncher } from "./cli-launcher.js";
+import { companionBus } from "./event-bus.js";
 
 // ─── Bun.spawn mock ─────────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ let launcher: CliLauncher;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  companionBus.clear();
   delete process.env.COMPANION_CONTAINER_SDK_HOST;
   delete process.env.COMPANION_FORCE_BYPASS_IN_CONTAINER;
   // Default to stdio for most tests; WS launcher behavior is covered explicitly below.
@@ -911,7 +913,7 @@ describe("codex websocket launcher", () => {
     mockSpawn.mockReturnValueOnce(codexProc).mockReturnValueOnce(proxyProc);
 
     const onAdapter = vi.fn();
-    launcher.onCodexAdapterCreated(onAdapter);
+    companionBus.on("backend:codex-adapter-created", ({ sessionId, adapter }) => onAdapter(sessionId, adapter));
 
     launcher.launch({
       backendType: "codex",
@@ -947,6 +949,27 @@ describe("codex websocket launcher", () => {
     expect(onAdapter.mock.calls[0][0]).toBe("test-session-id");
   });
 
+  it("skips already-claimed ws ports when selecting Codex host listen port", async () => {
+    process.env.COMPANION_CODEX_TRANSPORT = "ws";
+    mockResolveBinary.mockReturnValue("/opt/fake/codex");
+    (launcher as any).claimedCodexWsPorts.add(4500);
+
+    const codexProc = createMockProc(2101);
+    const { proc: proxyProc } = createPendingCodexWsProxyProc(2102);
+    mockSpawn.mockReturnValueOnce(codexProc).mockReturnValueOnce(proxyProc);
+
+    launcher.launch({
+      backendType: "codex",
+      cwd: "/tmp/project",
+      codexSandbox: "workspace-write",
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    const [codexCmd] = mockSpawn.mock.calls[0];
+    expect(codexCmd).toContain("ws://127.0.0.1:4501");
+  });
+
   it("passes custom connect and pong timeouts from env vars to the ws proxy", async () => {
     // When COMPANION_CODEX_WS_CONNECT_TIMEOUT_MS and COMPANION_CODEX_PONG_TIMEOUT_MS
     // are set, those values should be forwarded as argv[3] and argv[4] to the proxy.
@@ -959,7 +982,7 @@ describe("codex websocket launcher", () => {
     const { proc: proxyProc } = createPendingCodexWsProxyProc(5002);
     mockSpawn.mockReturnValueOnce(codexProc).mockReturnValueOnce(proxyProc);
 
-    launcher.onCodexAdapterCreated(vi.fn());
+    companionBus.on("backend:codex-adapter-created", vi.fn());
     launcher.launch({
       backendType: "codex",
       cwd: "/tmp/project",

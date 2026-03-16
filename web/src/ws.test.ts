@@ -116,6 +116,35 @@ describe("connectSession", () => {
     expect(lastWs).toBe(first);
   });
 
+  it("replaces a stale closed socket for the same session", () => {
+    wsModule.connectSession("s1");
+    const first = lastWs;
+    first.readyState = MockWebSocket.CLOSED;
+
+    wsModule.connectSession("s1");
+
+    expect(lastWs).not.toBe(first);
+    expect(first.close).toHaveBeenCalled();
+  });
+
+  it("does not clobber the new socket when replaced socket closes later", () => {
+    wsModule.connectSession("s1");
+    const first = lastWs;
+    first.readyState = MockWebSocket.CLOSING;
+
+    wsModule.connectSession("s1");
+    const second = lastWs;
+    expect(second).not.toBe(first);
+
+    first.onclose?.();
+
+    // Old socket close must not drop the replacement socket's state.
+    expect(useStore.getState().connectionStatus.get("s1")).toBe("connecting");
+    wsModule.sendToSession("s1", { type: "interrupt" });
+    expect(second.send).toHaveBeenCalled();
+  });
+
+
   it("sends session_subscribe with last_seq on open", () => {
     localStorage.setItem("companion:last-seq:s1", "12");
     wsModule.connectSession("s1");
@@ -169,6 +198,81 @@ describe("sendToSession", () => {
     expect(payload.type).toBe("interrupt");
     expect(typeof payload.client_msg_id).toBe("string");
   });
+
+  it("queues idempotent messages until the socket is open, then flushes them", () => {
+    wsModule.connectSession("s1");
+    lastWs.readyState = MockWebSocket.CONNECTING;
+
+    wsModule.sendToSession("s1", {
+      type: "user_message",
+      content: "hello from queue",
+    });
+
+    expect(lastWs.send).not.toHaveBeenCalled();
+
+    lastWs.readyState = MockWebSocket.OPEN;
+    lastWs.onopen?.(new Event("open"));
+
+    expect(lastWs.send).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(lastWs.send.mock.calls[0][0])).toEqual({
+      type: "session_subscribe",
+      last_seq: 0,
+    });
+    const payload = JSON.parse(lastWs.send.mock.calls[1][0]);
+    expect(payload.type).toBe("user_message");
+    expect(payload.content).toBe("hello from queue");
+    expect(typeof payload.client_msg_id).toBe("string");
+  });
+});
+
+describe("handleMessage: user_message", () => {
+  it("appends live user_message events from the server", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({
+      type: "user_message",
+      id: "cmsg-live-1",
+      content: "server-backed prompt",
+      timestamp: 1000,
+    });
+
+    expect(useStore.getState().messages.get("s1")).toEqual([
+      expect.objectContaining({
+        id: "cmsg-live-1",
+        role: "user",
+        content: "server-backed prompt",
+        timestamp: 1000,
+      }),
+    ]);
+  });
+
+  it("deduplicates optimistic user messages when the server echoes the same id", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    useStore.getState().appendMessage("s1", {
+      id: "cmsg-optimistic-1",
+      role: "user",
+      content: "optimistic first prompt",
+      timestamp: 1000,
+    });
+
+    fireMessage({
+      type: "user_message",
+      id: "cmsg-optimistic-1",
+      content: "optimistic first prompt",
+      timestamp: 1000,
+    });
+
+    const messages = useStore.getState().messages.get("s1")!;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      id: "cmsg-optimistic-1",
+      role: "user",
+      content: "optimistic first prompt",
+    });
+  });
 });
 
 // ===========================================================================
@@ -178,13 +282,55 @@ describe("disconnectSession", () => {
   it("closes the WebSocket and cleans up", () => {
     wsModule.connectSession("s1");
     const ws = lastWs;
+    useStore.getState().setConnectionStatus("s1", "connected");
 
     wsModule.disconnectSession("s1");
 
     expect(ws.close).toHaveBeenCalled();
+    expect(useStore.getState().connectionStatus.get("s1")).toBe("disconnected");
     // Sending after disconnect should be a no-op
     wsModule.sendToSession("s1", { type: "interrupt" });
     expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it("ignores stale onclose fired after disconnect cleanup", () => {
+    wsModule.connectSession("s1");
+    const ws = lastWs;
+
+    wsModule.disconnectSession("s1");
+
+    // Simulate async close callback arriving after socket map cleanup.
+    ws.onclose?.();
+    vi.advanceTimersByTime(5_000);
+
+    expect(lastWs).toBe(ws);
+    expect(useStore.getState().connectionStatus.get("s1")).toBe("disconnected");
+  });
+
+  it("clears queued outgoing messages on explicit disconnect", () => {
+    wsModule.connectSession("s1");
+    const firstWs = lastWs;
+    firstWs.readyState = MockWebSocket.CONNECTING;
+
+    wsModule.sendToSession("s1", {
+      type: "user_message",
+      content: "stale queued message",
+    });
+
+    expect(firstWs.send).not.toHaveBeenCalled();
+
+    wsModule.disconnectSession("s1");
+
+    wsModule.connectSession("s1");
+    const secondWs = lastWs;
+    secondWs.readyState = MockWebSocket.OPEN;
+    secondWs.onopen?.(new Event("open"));
+
+    expect(secondWs.send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(secondWs.send.mock.calls[0][0])).toEqual({
+      type: "session_subscribe",
+      last_seq: 0,
+    });
   });
 });
 
@@ -844,6 +990,80 @@ describe("handleMessage: cli_disconnected/connected", () => {
 
     fireMessage({ type: "cli_connected" });
     expect(useStore.getState().cliConnected.get("s1")).toBe(true);
+  });
+});
+// ===========================================================================
+// handleMessage: session_phase
+// ===========================================================================
+describe("handleMessage: session_phase", () => {
+  it("sets cliConnected=true and sessionStatus=idle for ready phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "ready", previousPhase: "initializing" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(true);
+    expect(useStore.getState().sessionStatus.get("s1")).toBe("idle");
+  });
+
+  it("sets sessionStatus=running for streaming phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "streaming", previousPhase: "ready" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(true);
+    expect(useStore.getState().sessionStatus.get("s1")).toBe("running");
+  });
+
+  it("sets sessionStatus=compacting for compacting phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "compacting", previousPhase: "ready" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(true);
+    expect(useStore.getState().sessionStatus.get("s1")).toBe("compacting");
+  });
+
+  it("sets sessionStatus=running for awaiting_permission phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "awaiting_permission", previousPhase: "streaming" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(true);
+    expect(useStore.getState().sessionStatus.get("s1")).toBe("running");
+  });
+
+  it("sets cliConnected=false for terminated phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "terminated", previousPhase: "reconnecting" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(false);
+    expect(useStore.getState().sessionStatus.get("s1")).toBeNull();
+  });
+
+  it("sets cliConnected=false for reconnecting phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "reconnecting", previousPhase: "ready" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(false);
+    expect(useStore.getState().sessionStatus.get("s1")).toBeNull();
+  });
+
+  it("sets cliConnected=false for starting phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "starting", previousPhase: "terminated" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(false);
+  });
+
+  it("sets cliConnected=false for initializing phase", () => {
+    wsModule.connectSession("s1");
+    fireMessage({ type: "session_init", session: makeSession("s1") });
+
+    fireMessage({ type: "session_phase", phase: "initializing", previousPhase: "starting" });
+    expect(useStore.getState().cliConnected.get("s1")).toBe(false);
   });
 });
 

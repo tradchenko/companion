@@ -1,8 +1,9 @@
-import { mkdirSync, readdirSync, appendFileSync, statSync, unlinkSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, appendFileSync, statSync, unlinkSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type { BackendType } from "./session-types.js";
 import { COMPANION_HOME } from "./paths.js";
+import { countFileLines } from "./fs-utils.js";
 
 const DEFAULT_MAX_LINES = 1_000_000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -47,6 +48,7 @@ export interface RecordingFileMeta {
 export class SessionRecorder {
   readonly filePath: string;
   private closed = false;
+  private _recordWriteErrorLogged = false;
   /** Number of lines written (1 for the header at construction). */
   lineCount = 1;
 
@@ -83,8 +85,13 @@ export class SessionRecorder {
     try {
       appendFileSync(this.filePath, JSON.stringify(entry) + "\n");
       this.lineCount++;
-    } catch {
-      // Never throw — recording must not disrupt normal operation
+    } catch (err) {
+      // Never throw — recording must not disrupt normal operation.
+      // But log once so operators can diagnose disk/permission issues.
+      if (!this._recordWriteErrorLogged) {
+        this._recordWriteErrorLogged = true;
+        console.warn(`[recorder] Write failed for ${this.filePath}: ${err instanceof Error ? err.message : err}`);
+      }
     }
   }
 
@@ -315,18 +322,3 @@ export class RecorderManager {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Count newlines in a file. Fast: reads raw buffer, counts 0x0A bytes. */
-function countFileLines(path: string): number {
-  try {
-    const buf = readFileSync(path);
-    let count = 0;
-    for (let i = 0; i < buf.length; i++) {
-      if (buf[i] === 0x0a) count++;
-    }
-    return count;
-  } catch {
-    return 0;
-  }
-}
