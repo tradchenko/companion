@@ -35,13 +35,16 @@ export function Composer({ sessionId }: { sessionId: string }) {
   const pendingSelectionRef = useRef<number | null>(null);
   const cliConnected = useStore((s) => s.cliConnected);
   const sessionData = useStore((s) => s.sessions.get(sessionId));
-  const previousMode = useStore((s) => s.previousPermissionMode.get(sessionId) || "acceptEdits");
 
   const isConnected = cliConnected.get(sessionId) ?? false;
   const currentMode = sessionData?.permissionMode || "acceptEdits";
   const isPlan = currentMode === "plan";
   const isCodex = sessionData?.backend_type === "codex";
-  const modes: ModeOption[] = isCodex ? CODEX_MODES : CLAUDE_MODES;
+  const isAcp = sessionData?.backend_type === "acp" || sessionData?.backend_type?.startsWith("acp:");
+  // Для ACP-агентов используем динамические режимы из session/new
+  const modes: ModeOption[] = isAcp && sessionData?.availableModes?.length
+    ? sessionData.availableModes
+    : isCodex ? CODEX_MODES : CLAUDE_MODES;
   const modeLabel = modes.find((m) => m.value === currentMode)?.label?.toLowerCase() || currentMode;
 
   const mention = useMentionMenu({
@@ -334,17 +337,16 @@ export function Composer({ sessionId }: { sessionId: string }) {
   }
 
   function toggleMode() {
-    if (!isConnected) return;
+    if (!isConnected || modes.length === 0) return;
     const store = useStore.getState();
-    if (!isPlan) {
-      store.setPreviousPermissionMode(sessionId, currentMode);
-      sendToSession(sessionId, { type: "set_permission_mode", mode: "plan" });
-      store.updateSession(sessionId, { permissionMode: "plan" });
-    } else {
-      const restoreMode = previousMode || (isCodex ? "bypassPermissions" : "acceptEdits");
-      sendToSession(sessionId, { type: "set_permission_mode", mode: restoreMode });
-      store.updateSession(sessionId, { permissionMode: restoreMode });
-    }
+
+    // Циклический переход по всем доступным режимам
+    const currentIdx = modes.findIndex((m) => m.value === currentMode);
+    const nextIdx = (currentIdx + 1) % modes.length;
+    const nextMode = modes[nextIdx].value;
+
+    sendToSession(sessionId, { type: "set_permission_mode", mode: nextMode });
+    store.updateSession(sessionId, { permissionMode: nextMode });
   }
 
   async function handleCreatePrompt() {
@@ -566,7 +568,7 @@ export function Composer({ sessionId }: { sessionId: string }) {
                     ? "text-cc-primary border-cc-primary/30 bg-cc-primary/8"
                     : "text-cc-muted border-cc-border"
               }`}
-              title="Toggle mode (Shift+Tab)"
+              title={`Toggle mode (Shift+Tab) — ${modes.map((m) => m.label).join(" → ")}`}
             >
               {isPlan ? (
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
@@ -715,7 +717,7 @@ export function Composer({ sessionId }: { sessionId: string }) {
               </svg>
             </button>
 
-            {/* Mode toggle */}
+            {/* Mode toggle — циклический переход по всем режимам */}
             <button
               onClick={toggleMode}
               disabled={!isConnected}
@@ -726,7 +728,7 @@ export function Composer({ sessionId }: { sessionId: string }) {
                     ? "text-cc-primary border-cc-primary/30 bg-cc-primary/8 hover:bg-cc-primary/12 cursor-pointer"
                     : "text-cc-muted border-cc-border hover:text-cc-fg hover:bg-cc-hover cursor-pointer"
               }`}
-              title="Toggle mode (Shift+Tab)"
+              title={`Toggle mode (Shift+Tab) — ${modes.map((m) => m.label).join(" → ")}`}
             >
               {isPlan ? (
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
