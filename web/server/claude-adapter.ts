@@ -447,6 +447,18 @@ export class ClaudeAdapter implements IBackendAdapter {
         // Silently consume keepalives
         break;
 
+      case "user":
+        // CLI echoes back user messages (including tool_result blocks from
+        // subagents). These are purely informational — the bridge already
+        // persists user messages from the browser side. Silently drop them
+        // to avoid rendering raw tool_result JSON in the chat UI.
+        break;
+
+      case "rate_limit_event":
+        // Rate-limit status from Claude API (allowed/throttled). Silently
+        // consumed — no user-facing action needed.
+        break;
+
       default:
         reportProtocolDrift(
           this.protocolDriftSeen,

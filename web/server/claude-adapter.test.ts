@@ -279,6 +279,102 @@ describe("Protocol drift handling", () => {
   });
 });
 
+// ─── Known non-standard CLI message types ────────────────────────────────────
+
+describe("Known non-standard CLI message types", () => {
+  it("rate_limit_event is silently consumed without protocol drift warning", () => {
+    // The CLI sends rate_limit_event messages with throttle/allow status.
+    // These should be silently consumed and NOT trigger protocol drift logs.
+    const spy = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const ws = createMockSocket("sess-1");
+    adapter.attachWebSocket(ws);
+
+    adapter.handleRawMessage(
+      JSON.stringify({
+        type: "rate_limit_event",
+        rate_limit_info: { is_rate_limited: false, resets_at: null },
+        uuid: "rl-uuid-1",
+      }) + "\n",
+    );
+
+    // Should NOT produce a protocol drift warning
+    expect(spy).not.toHaveBeenCalledWith(
+      "protocol-monitor",
+      "Backend protocol drift detected",
+      expect.anything(),
+    );
+    // Should NOT emit an error to the browser
+    expect(browserMessageCb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error" }),
+    );
+
+    spy.mockRestore();
+  });
+
+  it("user echo with plain string content is silently dropped", () => {
+    // CLI echoes back user messages. All echoes should be silently dropped
+    // to avoid rendering raw protocol data in the chat UI.
+    const spy = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const ws = createMockSocket("sess-1");
+    adapter.attachWebSocket(ws);
+
+    adapter.handleRawMessage(
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "Hello from browser" },
+        uuid: "user-echo-1",
+        session_id: "cli-123",
+      }) + "\n",
+    );
+
+    // Should NOT produce a protocol drift warning
+    expect(spy).not.toHaveBeenCalledWith(
+      "protocol-monitor",
+      "Backend protocol drift detected",
+      expect.anything(),
+    );
+    // Should NOT emit anything to browser — all user echoes are silently
+    // dropped with no callback fired at all.
+    expect(browserMessageCb).not.toHaveBeenCalled();
+
+    spy.mockRestore();
+  });
+
+  it("user echo with non-string content (tool_result) is also silently dropped", () => {
+    // Non-string user echoes (e.g. tool_result arrays from subagents) were
+    // previously forwarded as user_message, causing raw JSON to render in
+    // the chat UI. Now all user echoes are silently dropped.
+    const spy = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const ws = createMockSocket("sess-1");
+    adapter.attachWebSocket(ws);
+
+    const complexContent = [
+      { type: "tool_result", tool_use_id: "t1", content: "result" },
+    ];
+    adapter.handleRawMessage(
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: complexContent },
+        uuid: "user-echo-2",
+        session_id: "cli-123",
+      }) + "\n",
+    );
+
+    // Should NOT produce a protocol drift warning
+    expect(spy).not.toHaveBeenCalledWith(
+      "protocol-monitor",
+      "Backend protocol drift detected",
+      expect.anything(),
+    );
+    // Should NOT emit anything to browser — the case "user" handler does
+    // nothing at all, so no callback should fire (not just user_message,
+    // but any event type).
+    expect(browserMessageCb).not.toHaveBeenCalled();
+
+    spy.mockRestore();
+  });
+});
+
 // ─── Connection lifecycle ───────────────────────────────────────────────────
 
 describe("Connection lifecycle", () => {
