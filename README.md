@@ -2,9 +2,44 @@
   <img src="screenshot.png" alt="The Companion" width="100%" />
 </p>
 
-<h1 align="center">The Companion</h1>
-<p align="center"><strong>Web UI for Claude Code and Codex sessions.</strong></p>
+<h1 align="center">The Companion — ACP Fork</h1>
+<p align="center"><strong>Web UI for Claude Code, Codex, and ACP-compatible agents.</strong></p>
 <p align="center">Run multiple agents, inspect every tool call, and gate risky actions with explicit approvals.</p>
+
+## What this fork adds
+
+This is a fork of [The-Vibe-Company/companion](https://github.com/The-Vibe-Company/companion) with **ACP (Agent Communication Protocol) multi-agent support**. In addition to Claude Code and Codex, this fork can run any ACP-compatible CLI agent through a unified adapter.
+
+### Supported agents
+
+| Agent | Binary | Status |
+|-------|--------|--------|
+| Claude Code | `claude` | upstream |
+| Codex | `codex` | upstream |
+| **Gemini CLI** | `gemini` | ACP fork |
+| **Qwen Code** | `qwen` | ACP fork |
+| **Goose** | `goose` | ACP fork |
+| **GitHub Copilot** | `copilot` | ACP fork |
+
+### Key additions
+
+- **ACP Adapter** — unified `IBackendAdapter` implementation for any agent supporting the [ACP protocol](https://github.com/anthropics/acp) (JSON-RPC 2.0 over stdio)
+- **Agent registry** — declarative agent config in `acp-agents.json` with auto-discovery of binaries, default models, and modes
+- **Cyclic mode switcher** — agents expose their own modes (e.g. Qwen: Auto / Plan / Review / Interpret); the Composer cycles through all of them
+- **Native slash commands** — `/tools`, `/stats`, `/model`, `/mode`, `/mcp`, `/context`, `/cost`, `/help` execute locally in the Companion without being sent to the agent
+- **ACP usage panel** — token tracking (input/output/reasoning) when the agent reports `_meta.usage`
+- **MCP pass-through** — Companion's MCP server config is forwarded to ACP agents at session start
+- **Read-only MCP panel** — for ACP and Claude Code backends, MCP servers are displayed without add/remove controls
+
+### Running the fork
+
+```bash
+cd web && bun install && PORT=3460 VITE_PORT=5180 bun run dev
+```
+
+Agents must be installed separately (`gemini`, `qwen`, etc.) and available in PATH.
+
+---
 
 <p align="center">
   <a href="https://www.npmjs.com/package/the-companion"><img src="https://img.shields.io/npm/v/the-companion.svg" alt="npm version" /></a>

@@ -3462,10 +3462,10 @@ describe("GET /api/backends", () => {
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual([
-      { id: "claude", name: "Claude Code", available: true },
-      { id: "codex", name: "Codex", available: true },
-    ]);
+    // Первые два — Claude Code и Codex, далее ACP агенты из реестра
+    expect(json[0]).toEqual({ id: "claude", name: "Claude Code", available: true });
+    expect(json[1]).toEqual({ id: "codex", name: "Codex", available: true });
+    expect(json.length).toBeGreaterThanOrEqual(2);
   });
 
   it("marks backends as unavailable when binary is not found", async () => {
@@ -3478,10 +3478,9 @@ describe("GET /api/backends", () => {
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual([
-      { id: "claude", name: "Claude Code", available: false },
-      { id: "codex", name: "Codex", available: false },
-    ]);
+    // Первые два — Claude Code и Codex
+    expect(json[0]).toEqual({ id: "claude", name: "Claude Code", available: false });
+    expect(json[1]).toEqual({ id: "codex", name: "Codex", available: false });
   });
 
   it("handles mixed availability", async () => {
