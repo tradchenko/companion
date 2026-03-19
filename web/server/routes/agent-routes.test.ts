@@ -35,6 +35,26 @@ vi.mock("../linear-staging.js", () => ({
   pruneExpired: vi.fn(),
 }));
 
+// ─── Mock linear-oauth-connections module ────────────────────────────────────
+// Mocked so agent creation tests involving staging slots can control OAuth
+// connection creation without touching the filesystem.
+vi.mock("../linear-oauth-connections.js", () => ({
+  getOAuthConnection: vi.fn(() => null),
+  createOAuthConnection: vi.fn((data: Record<string, unknown>) => ({
+    id: "mock-oauth-conn-id",
+    name: data.name || "Mock OAuth Connection",
+    oauthClientId: data.oauthClientId || "",
+    oauthClientSecret: data.oauthClientSecret || "",
+    webhookSecret: data.webhookSecret || "",
+    accessToken: data.accessToken || "",
+    refreshToken: data.refreshToken || "",
+    status: data.accessToken ? "connected" : "disconnected",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  })),
+  findOAuthConnectionByClientId: vi.fn(() => null),
+}));
+
 import { Hono } from "hono";
 import * as agentStore from "../agent-store.js";
 import { getSettings, updateSettings } from "../settings-manager.js";
@@ -477,6 +497,31 @@ describe("POST /api/agents/import", () => {
     const json = await res.json();
     expect(json.error).toBe("Agent name is required");
   });
+
+  it("preserves provided import version metadata", async () => {
+    // Imported payload version should flow through to createAgent instead of being reset.
+    const importedAgent = makeAgent({ id: "imported-v2", name: "Imported V2", enabled: false });
+    vi.mocked(agentStore.createAgent).mockReturnValue(importedAgent);
+
+    const res = await app.request("/api/agents/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: 2,
+        name: "Imported V2",
+        prompt: "Do stuff",
+        backendType: "claude",
+        model: "claude-sonnet-4-6",
+        permissionMode: "bypassPermissions",
+        cwd: "/tmp",
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(agentStore.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ version: 2, enabled: false }),
+    );
+  });
 });
 
 // ─── GET /api/agents/:id/export ─────────────────────────────────────────────
@@ -794,7 +839,10 @@ describe("POST /api/agents — Priority 1: staging slot (stagingId)", () => {
   it("resolves Linear credentials from a staging slot when stagingId is provided", async () => {
     // When the request body includes a stagingId, the route should call
     // staging.consumeSlot() to retrieve and delete the one-time slot,
-    // then copy the slot's credentials to the newly created agent.
+    // then create an OAuth connection from the slot's credentials and
+    // store oauthConnectionId on the agent (new model).
+    const { createOAuthConnection } = await import("../linear-oauth-connections.js");
+
     const createdAgent = makeAgent({
       id: "staged-agent",
       name: "Staged Agent",
@@ -813,18 +861,14 @@ describe("POST /api/agents — Priority 1: staging slot (stagingId)", () => {
       createdAt: Date.now(),
     });
 
-    // updateAgent returns the agent with credentials merged
+    // updateAgent returns the agent with oauthConnectionId
     const updatedAgent = makeAgent({
       id: "staged-agent",
       name: "Staged Agent",
       triggers: {
         linear: {
           enabled: true,
-          oauthClientId: "slot-client-id",
-          oauthClientSecret: "slot-client-secret",
-          webhookSecret: "slot-webhook-secret",
-          accessToken: "slot-access-token",
-          refreshToken: "slot-refresh-token",
+          oauthConnectionId: "mock-oauth-conn-id",
         },
       },
     });
@@ -846,30 +890,32 @@ describe("POST /api/agents — Priority 1: staging slot (stagingId)", () => {
     // consumeSlot should have been called with the provided stagingId
     expect(staging.consumeSlot).toHaveBeenCalledWith("abc123def456abc123def456abc123de");
 
-    // updateAgent should have been called to copy slot credentials to the agent
+    // createOAuthConnection should have been called with the slot's credentials
+    expect(createOAuthConnection).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Staged Agent OAuth App",
+      oauthClientId: "slot-client-id",
+      oauthClientSecret: "slot-client-secret",
+      webhookSecret: "slot-webhook-secret",
+      accessToken: "slot-access-token",
+      refreshToken: "slot-refresh-token",
+    }));
+
+    // updateAgent should have been called with oauthConnectionId reference
     expect(agentStore.updateAgent).toHaveBeenCalledWith("staged-agent", {
       triggers: {
         linear: {
           enabled: true,
-          oauthClientId: "slot-client-id",
-          oauthClientSecret: "slot-client-secret",
-          webhookSecret: "slot-webhook-secret",
-          accessToken: "slot-access-token",
-          refreshToken: "slot-refresh-token",
+          oauthConnectionId: "mock-oauth-conn-id",
         },
       },
     });
 
     // Global settings should NOT be cleared when using a staging slot
-    // (clearing only happens for the backward-compat global staging path)
     expect(updateSettings).not.toHaveBeenCalled();
 
-    // Response should have sanitized credentials (secrets stripped, boolean flags present)
+    // Response should have oauthConnectionId and sanitized credentials
     const json = await res.json();
-    expect(json.triggers.linear.hasAccessToken).toBe(true);
-    expect(json.triggers.linear.hasClientSecret).toBe(true);
-    expect(json.triggers.linear.hasWebhookSecret).toBe(true);
-    expect(json.triggers.linear).not.toHaveProperty("oauthClientSecret");
+    expect(json.triggers.linear.oauthConnectionId).toBe("mock-oauth-conn-id");
     expect(json.triggers.linear).not.toHaveProperty("accessToken");
     expect(json.triggers.linear).not.toHaveProperty("refreshToken");
     expect(json.triggers.linear).not.toHaveProperty("webhookSecret");

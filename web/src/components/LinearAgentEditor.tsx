@@ -89,9 +89,14 @@ export function LinearAgentEditor({
               </svg>
             </button>
             <LinearLogo className="w-5 h-5 text-cc-fg" />
-            <h1 className="text-lg font-semibold text-cc-fg">
-              Edit Linear Agent
-            </h1>
+            <div>
+              <h1 className="text-lg font-semibold text-cc-fg">
+                Edit Linear Agent
+              </h1>
+              <p className="text-[10px] text-cc-muted font-mono-code">
+                ID: {editingId}
+              </p>
+            </div>
           </div>
           <div className="flex gap-2">
             <button
@@ -262,7 +267,7 @@ export function LinearAgentEditor({
             </div>
             <p className="text-[10px] text-cc-muted mt-2">
               This agent responds to @mentions in Linear.{" "}
-              <a href="#/integrations/linear" className="text-cc-primary underline">Manage OAuth credentials</a>.
+              <a href="#/integrations/linear-oauth" className="text-cc-primary underline">Manage OAuth connections</a>.
             </p>
           </section>
         </div>
